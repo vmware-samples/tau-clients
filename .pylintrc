@@ -1,0 +1,281 @@
+[MASTER]
+
+# Specify a configuration file.
+#rcfile=
+
+# Python code to execute, usually for sys.path manipulation such as
+# pygtk.require().
+#init-hook=
+
+# Add <file or directory> to the black list. It should be a base name, not a
+# path. You may set this option multiple times.
+ignore=CVS
+
+# Pickle collected data for later comparisons.
+persistent=yes
+
+# List of plugins (as comma separated values of python modules names) to load,
+# usually to register additional checkers.
+load-plugins=
+
+
+[MESSAGES CONTROL]
+
+# Enable the message, report, category or checker with the given id(s). You can
+# either give multiple identifier separated by comma (,) or put this option
+# multiple time.
+#enable=
+
+# Disable the message, report, category or checker with the given id(s). You
+# can either give multiple identifier separated by comma (,) or put this option
+# multiple time (only on the command line, not in the configuration file where
+# it should appear only once).
+
+#pylint bugs and other problems
+#E1103: %s %r has no %r member (but some types could not be inferred)
+#	This is way too noisy
+#W0108: Lambda may not be necessary
+#        Not sure how to get rid of things like lambda x:MyClass(x)
+#		 Also, sometimes we need lazy evaluation.
+#W0404: Reimport of module
+#        triggers when you import foo and then foo.bar
+#R0904: Too many public methods
+#        counts more methods than I can see, maybe includes inherited methods?
+#R0922: Abstract class is only referenced 1 times
+#        I may be using it in other modules!
+
+
+#useless nitpicking on style or formatting
+#W0105: string statement has no effect
+#        comments and stuff
+#W0142: use * or ** magic
+#		 If I am using it it is likely necessary
+#C0301: line too long
+#C0321: more than one statement on a single line
+#        I use this for "if variable is None: variable=default"
+#C0322: Operator not preceded by space
+#C0324: Comma not followed by a space
+#R: we are not interested in the refactoring category
+
+
+#W0232: Class has no __init__ method. So what???
+#E1001: Use __slots__ in old-style class: this is seldom useful,
+#	 and has some false positives (e.g., with collections.namedtuple
+#W0212: access to protected memeber:
+#	this gives false positives for cases where it is intended
+#	(such as collections.namedtuple._asdict)
+#	Also it is not very informative since the naming convention speaks for itself.
+#W0703: use of % in logging: not recommended,
+#       but not a deal-breaker and too pervasive in our code right now
+
+
+#finally completely disabling R and C classes.
+#I0011: locally disabling a warning
+#	thank you, I am disabling the warning so you don't show it to me!
+#I0012: locally enabling a warning: even more useless
+#I0013: disabling all on a file. Yes. Including this one, please?
+#E0012: Bad option value.
+#       Hits when we use an option value supported by some,
+#       but not all, of the pylint versions we use.
+#       Typically, this is because option exists in trusty but not in precise.
+disable=useless-super-delegation,E1103,W0108,W0404,R0904,R0922,  W0105,W0142,C0301,C0321,C0322,C0324,R,   W0232,E1001,W0212,W0703, C, I0011,I0012,I0013,E0012
+
+
+[REPORTS]
+
+# Set the output format. Available formats are text, parseable, colorized, msvs
+# (visual studio) and html
+output-format=text
+
+# Put messages in a separate file for each module / package specified on the
+# command line instead of printing them on stdout. Reports (if any) will be
+# written in a file name "pylint_global.[txt|html]".
+files-output=no
+
+# Tells whether to display a full report or only the messages
+reports=no
+
+# Python expression which should return a note less than 10 (10 is the highest
+# note). You have access to the variables errors warning, statement which
+# respectively contain the number of errors / warnings messages and the total
+# number of statements analyzed. This is used by the global evaluation report
+# (RP0004).
+evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
+
+
+[VARIABLES]
+
+# Tells whether we should check for unused import in __init__ files.
+init-import=no
+
+# A regular expression matching the beginning of the name of dummy variables
+# (i.e. not used).
+dummy-variables-rgx=_|dummy|unused|ignore
+# dummy-variables-rgx is deprecated in Pylint >= 1.7:
+# "Now, ignored-argument-names is used for its original purpose and also for
+# ignoring the matched arguments for the unused-variable check"
+ignored-argument-names=_|dummy|unused|ignore
+
+# List of additional names supposed to be defined in builtins. Remember that
+# you should avoid to define new builtins when possible.
+additional-builtins=
+
+
+[BASIC]
+
+# List of builtins function names that should not be used, separated by a comma
+# removed filter and map
+bad-functions=apply,input
+
+# Regular expression which should only match correct module names
+module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
+
+# Regular expression which should only match correct module level names
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+# Regular expression which should only match correct class names
+class-rgx=[A-Z_][a-zA-Z0-9]+$
+
+# Regular expression which should only match correct function names
+function-rgx=[a-z_][a-z0-9_]{2,30}$
+
+# Regular expression which should only match correct method names
+# We use a lowercase only convention, but when overriding method
+# names that use camel case we get warnings.
+# Need to add names of methods I override here if they do not follow our conventions
+# Will this scale? if not, we should use more permissive regexp that allows uppercase.
+# unittest.TestCase methods: setUp,tearDown,runTest,shortDescription
+method-rgx=[a-z_][a-z0-9_]{1,30}$|setUp$|tearDown$|shortDescription$|runTest$
+
+# Regular expression which should only match correct instance attribute names
+# Added _[a-zA-Z0-9]*.* for private attributes which have more lax naming rules
+attr-rgx=([a-z_][a-z0-9_]{1,30})|(_[a-zA-Z0-9]*.*)$
+
+# Regular expression which should only match correct argument names
+argument-rgx=[a-z_][a-z0-9_]{0,30}$
+
+# Regular expression which should only match correct variable names
+variable-rgx=[a-zA-Z_][A-Za-z0-9_]{0,30}$
+
+# Regular expression which should only match correct list comprehension /
+# generator expression variable names
+inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
+
+# Good variable names which should always be accepted, separated by a comma
+good-names=i,j,k,ex,Run,_
+
+# Bad variable names which should always be refused, separated by a comma
+bad-names=foo,bar,baz,toto,tutu,tata
+
+# Regular expression which should only match functions or classes name which do
+# not require a docstring
+# Added _[a-zA-Z0-9]*.*, because those are private methods!
+# Added main, because the name says it all
+# Added test_.*, because unit test names are often self explainatory
+no-docstring-rgx=(__.*__)|(_[a-zA-Z0-9]*.*)|(main)|test_.*
+
+
+[SIMILARITIES]
+
+# Minimum lines number of a similarity.
+min-similarity-lines=4
+
+# Ignore comments when computing similarities.
+ignore-comments=yes
+
+# Ignore docstrings when computing similarities.
+ignore-docstrings=yes
+
+
+[MISCELLANEOUS]
+
+# List of note tags to take in consideration, separated by a comma.
+notes=FIXME,XXX,TODO
+
+
+[FORMAT]
+
+# Maximum number of characters on a single line.
+max-line-length=80
+
+# Maximum number of lines in a module
+max-module-lines=1000
+
+# String used as indentation unit. This is usually " " (4 spaces) or "\t" (1
+# tab).
+indent-string='    '
+
+
+[TYPECHECK]
+
+# Tells whether missing members accessed in mixin class should be ignored. A
+# mixin class is detected if its name ends with "mixin" (case insensitive).
+ignore-mixin-members=yes
+
+# List of classes names for which member attributes should not be checked
+# (useful for classes with attributes dynamically set).
+ignored-classes=SQLObject
+
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E0201 when accessed.
+generated-members=REQUEST,acl_users,aq_parent
+
+
+[CLASSES]
+
+# List of method names used to declare (i.e. assign) instance attributes.
+# Added reset
+# added setUp (for unit tests)
+# added flush (for cache)
+defining-attr-methods=__init__,__new__,setUp,reset,flush
+
+
+[IMPORTS]
+
+# Deprecated modules which should not be used, separated by a comma
+deprecated-modules=regsub,string,TERMIOS,Bastion,rexec
+
+# Create a graph of every (i.e. internal and external) dependencies in the
+# given file (report RP0402 must not be disabled)
+import-graph=
+
+# Create a graph of external dependencies in the given file (report RP0402 must
+# not be disabled)
+ext-import-graph=
+
+# Create a graph of internal dependencies in the given file (report RP0402 must
+# not be disabled)
+int-import-graph=
+
+
+[DESIGN]
+
+# Maximum number of arguments for function / method
+# Raised this from 10 to 15
+max-args=15
+
+# Maximum number of locals for function / method body
+max-locals=15
+
+# Maximum number of return / yield for function / method body
+max-returns=6
+
+# Maximum number of branch for function / method body
+# Raised this from 12 to 15
+max-branchs=15
+
+# Maximum number of statements in function / method body
+# raised this from 50 to 100, and will probably raise it further
+max-statements=100
+
+# Maximum number of parents for a class (see R0901).
+max-parents=7
+
+# Maximum number of attributes for a class (see R0902).
+max-attributes=15
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods=2
+
+# Maximum number of public methods for a class (see R0904).
+max-public-methods=20

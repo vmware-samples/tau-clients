@@ -1,0 +1,4 @@
+tau_clients.ini
+/venv/
+/src/tau_clients.egg-info/
+/.tox/

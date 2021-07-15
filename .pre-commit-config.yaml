@@ -1,0 +1,33 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks.git
+  rev: v3.4.0
+  hooks:
+  - id: check-added-large-files
+  - id: check-ast
+  - id: check-byte-order-marker
+  - id: check-docstring-first
+  - id: check-executables-have-shebangs
+  - id: check-json
+  - id: check-merge-conflict
+  - id: check-yaml
+  - id: debug-statements
+  - id: detect-private-key
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/psf/black
+  rev: 19.3b0
+  hooks:
+  - id: black
+- repo: https://github.com/asottile/reorder_python_imports.git
+  rev: v2.3.6
+  hooks:
+  - id: reorder-python-imports
+    language_version: python3.6
+- repo: local
+  hooks:
+    - id: pylint
+      name: pylint
+      entry: pylint  --rcfile=./.pylintrc
+      exclude: ^tests/
+      language: system
+      types: [python]
