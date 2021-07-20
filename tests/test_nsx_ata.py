@@ -1,7 +1,13 @@
+#!/usr/bin/env python
+"""
+:Copyright:
+    Copyright 2021 VMware, Inc.  All Rights Reserved.
+"""
 import json
 import unittest
 from unittest.mock import call
 
+import ddt
 import mock
 import requests.exceptions
 from tau_clients import exceptions
@@ -27,68 +33,30 @@ def mock_response(status_code, content=None):
     return res
 
 
-class OpenAnalysisTestCase(unittest.TestCase):
-    @mock.patch("requests.sessions.Session")
-    @mock.patch("requests.sessions")
-    def test_analysis_client__request_exception(self, requests_mock, session_mock):
-        exception_message = "timeout"
-        session_mock.request.side_effect = [requests.ReadTimeout(exception_message)]
-        requests_mock.session.return_value = session_mock
-
-        # Test the code
-        client = nsx_ata.AnalysisClient(
+@ddt.ddt
+class AbstractClientTestCase(unittest.TestCase):
+    @ddt.data(
+        (("login", []), "{}/login.json".format(TEST_API_URL)),
+        (("login", []), "{}/login.json".format(TEST_API_URL)),
+        (("analysis", ["test"]), "{}/analysis/test.json".format(TEST_API_URL)),
+        (
+            ("knowledgebase", ["test"], "json"),
+            "{}/knowledgebase/test.json".format(TEST_API_URL),
+        ),
+        (
+            ("knowledgebase", ["test", "test2"], "json"),
+            "{}/knowledgebase/test/test2.json".format(TEST_API_URL),
+        ),
+    )
+    def test_join_url(self, args):
+        arguments, expected = args
+        client = nsx_ata.PortalClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
-        with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
-            _ = client.get_analysis_tags(TEST_UUID)
-
-    @mock.patch("requests.sessions.Session")
-    @mock.patch("requests.sessions")
-    def test_analysis_client(self, requests_mock, session_mock):
-        expected_result = {"progress": 100, "completed": 1}
-        session_mock.request.side_effect = [
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": expected_result}),
-        ]
-        requests_mock.session.return_value = session_mock
-
-        # Test the code
-        client = nsx_ata.AnalysisClient(
-            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
-        )
-        ret = client.get_progress(TEST_UUID)
-
-        # Verify the asserts
-        session_mock.request.assert_has_calls(
-            [
-                call(
-                    data=ANALYSIS_AUTH_DATA,
-                    params=None,
-                    files=None,
-                    headers=None,
-                    method="POST",
-                    stream=False,
-                    timeout=mock.ANY,
-                    url="{}/authentication/login.json".format(TEST_API_URL),
-                    verify=True,
-                ),
-                call(
-                    data=None,
-                    params={"uuid": TEST_UUID},
-                    files=None,
-                    headers=None,
-                    method="GET",
-                    stream=False,
-                    timeout=mock.ANY,
-                    url="{}/analysis/get_progress.json".format(TEST_API_URL),
-                    verify=True,
-                ),
-            ]
-        )
-        self.assertEqual(ret, expected_result)
+        self.assertEqual(client._build_url(*arguments), expected)
 
 
-class MyTestCase(unittest.TestCase):
+class PortalClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client__request_exception(self, requests_mock, session_mock):
@@ -193,6 +161,67 @@ class MyTestCase(unittest.TestCase):
                     headers=None,
                     method="GET",
                     params={"uuid": TEST_UUID},
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/get_progress.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret, expected_result)
+
+
+class AnalysisClientTestCase(unittest.TestCase):
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_analysis_client__request_exception(self, requests_mock, session_mock):
+        exception_message = "timeout"
+        session_mock.request.side_effect = [requests.ReadTimeout(exception_message)]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_ata.AnalysisClient(
+            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
+        )
+        with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
+            _ = client.get_analysis_tags(TEST_UUID)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_analysis_client(self, requests_mock, session_mock):
+        expected_result = {"progress": 100, "completed": 1}
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": expected_result}),
+        ]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_ata.AnalysisClient(
+            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
+        )
+        ret = client.get_progress(TEST_UUID)
+
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"uuid": TEST_UUID},
+                    files=None,
+                    headers=None,
+                    method="GET",
                     stream=False,
                     timeout=mock.ANY,
                     url="{}/analysis/get_progress.json".format(TEST_API_URL),

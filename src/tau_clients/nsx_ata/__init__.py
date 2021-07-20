@@ -1,8 +1,17 @@
+"""
+:Copyright:
+    Copyright 2021 VMware, Inc.  All Rights Reserved.
+"""
 import abc
 import configparser
 import datetime
 import io
 import logging
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 import more_itertools
 import requests
@@ -15,18 +24,31 @@ class AbstractClient(abc.ABC):
 
     __metaclass__ = abc.ABCMeta
 
-    SUB_APIS = ("analysis", "authentication", "knowledgebase", "login")
-    FORMATS = ["json", "xml"]
+    # Empty tuple, to be overriden by the subclass
+    MODULES = ()
+
+    # Empty tuple, to be overriden by the subclass
+    FORMATS = ()
+
+    # Default FMT used by the API
+    DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
 
     @classmethod
-    def get_login_params(cls, conf, section_name):
+    def _get_login_params(
+        cls, conf: configparser.ConfigParser, section_name: str
+    ) -> dict:
         """
-        Get the module configuration from a ConfigParser object.
+        Get the login parameters from a 'ConfigParser' object.
 
-        :param ConfigParser conf: the conf object
+        Note: depending on the license type we might be using username/password combination
+            of key/api_token; this method makes sure that at least one combination is selected
+
+        :param configparser.ConfigParser conf: the conf object
         :param str section_name: the section name
         :rtype: dict[str, str]
-        :return: the parsed configuration
+        :return: a dictionary with the required login parameters
+        :raises configparser.NoOptionError: when no valid combination is found
+        :raises configparser.Error: any exception that can be raised by ConfigParser
         """
         api_key = conf.get(section_name, "key", fallback=None)
         api_token = conf.get(section_name, "api_token", fallback=None)
@@ -40,15 +62,20 @@ class AbstractClient(abc.ABC):
             raise configparser.NoOptionError("username", section_name)
 
     @classmethod
-    def client_from_config(cls, conf, section_name):
+    def from_conf(
+        cls, conf: configparser.ConfigParser, section_name: str
+    ) -> "AbstractClient":
         """
-        Get the client from a conf object
+        Get the client from a 'ConfigParser' object.
 
-        :param ConfigParser conf: the conf object
+        :param configparser.ConfigParser conf: the conf object
         :param str section_name: the section name
+        :rtype: Any
+        :return: the initialized client
+        :raises configparser.Error: any exception that can be raised by ConfigParser
         """
         url = conf.get(section_name, "url").strip("/")
-        login_params = cls.get_login_params(conf, section_name)
+        login_params = cls._get_login_params(conf, section_name)
         timeout = conf.getint(section_name, "timeout", fallback=60)
         verify_ssl = conf.getboolean(section_name, "verify_ssl", fallback=True)
         return cls(
@@ -58,11 +85,17 @@ class AbstractClient(abc.ABC):
             verify_ssl=verify_ssl,
         )
 
-    def __init__(self, api_url, login_params, timeout=60, verify_ssl=True):
+    def __init__(
+        self,
+        api_url: str,
+        login_params: Dict[str, str],
+        timeout: int = 60,
+        verify_ssl: bool = True,
+    ) -> None:
         """
-        Instantiate a Lastline mini client.
+        Constructor.
 
-        :param str api_url: the URL of the API
+        :param str api_url: the URL of the API endpoint
         :param dict[str, str]: the login parameters
         :param int timeout: the timeout
         :param boolean verify_ssl: whether to verify the SSL certificate
@@ -74,181 +107,216 @@ class AbstractClient(abc.ABC):
         self._session = None
         self._logger = logging.getLogger(__name__)
 
+    @property
+    def base(self) -> str:
+        """Return the API endpoint URL."""
+        return self._url
+
     @abc.abstractmethod
-    def _login(self):
+    def _login(self) -> None:
         """Login using account-based or key-based methods."""
 
-    def _is_logged_in(self):
+    def _is_logged_in(self) -> bool:
         """Return whether we have an active session."""
         return self._session is not None
 
+    def _build_url(
+        self, module: str, function: Union[List[str], str], fmt: str = "json"
+    ) -> str:
+        """
+        Build a URL composed by module, function(s), and format.
+
+        :param str module: the module that is being contacted
+        :param list[str]|str function: a list of strings detailing the function required
+        :param str fmt: the format of the API call
+        :rtype: str
+        :return: the URL ready to be contacted
+        :raises InvalidArgument: if any of the arguments is not valid
+        """
+        if module not in self.MODULES:
+            raise exceptions.InvalidArgument(module)
+        if fmt not in self.FORMATS:
+            raise exceptions.InvalidArgument(fmt)
+        if isinstance(function, list):
+            parts = function
+        else:
+            parts = [function] if function else []
+        if parts and not any(isinstance(x, str) for x in parts):
+            raise exceptions.InvalidArgument(function)
+        return "/".join([self.base, module] + parts) + ".{}".format(fmt)
+
     @classmethod
-    def _parse_response(cls, response):
+    def _parse_response(cls, response: requests.Response) -> Union[dict, str]:
         """
         Parse the response.
 
         :param requests.Response response: the response
-        :rtype: tuple(str|None, Error|ApiError)
-        :return: a tuple with mutually exclusive fields (either the response or the error)
+        :rtype: dict|str
+        :return: the decoded response
+        :raises ApiError: if the response has an error
         """
         try:
             ret = response.json()
             if "success" not in ret:
-                return None, exceptions.ApiError("No success field in response")
-
+                raise exceptions.ApiError("No success field in response")
             if not ret["success"]:
-                return (
-                    None,
-                    exceptions.ApiError(ret.get("error"), ret.get("error_code")),
-                )
-
+                raise exceptions.ApiError(ret.get("error"), ret.get("error_code"))
             if "data" not in ret:
-                return None, exceptions.ApiError("No data field in response")
-
-            return ret["data"], None
+                raise exceptions.ApiError("No data field in response")
+            return ret["data"]
         except ValueError as e:
-            return None, exceptions.ApiError("Response not json {}".format(e))
+            raise exceptions.ApiError("Response not json {}".format(e))
 
     @classmethod
-    def _parse_request_exception(cls, request_exception, response):
+    def _parse_exception(
+        cls, request_exception: requests.RequestException, response: requests.Response
+    ) -> exceptions.ApiError:
         """
-        Convert an exception into a ApiError exception
+        Convert an exception into a ApiError exception.
 
-        :param Exception e: the exception that has been raised
-        :param Response response: the response object
+        :param requests.RequestException request_exception: the exception that has been raised
+        :param requests.Response response: the response object
         :rtype: ApiError
-        :return: our exception
+        :return: the converted exception with as much debug info as possible
         """
-        _, api_exception = cls._parse_response(response)
-        if api_exception:
+        try:
+            cls._parse_response(response)
+        except exceptions.ApiError as api_exception:
             error_message = "{} ({})".format(api_exception, request_exception)
         else:
             error_message = str(request_exception)
         return exceptions.ApiError(error_message)
 
-    def _handle_response(self, response, raw=False):
+    @classmethod
+    def _handle_response(
+        cls, response: requests.Response, raw: bool = False
+    ) -> Union[dict, str]:
         """
         Check a response for issues and parse the return.
 
         :param requests.Response response: the response
-        :param boolean raw: whether the raw body should be returned
-        :rtype: str
-        :return: if raw, return the response content; if not raw, the data field
-        :raises: CommunicationError, ApiError
+        :param bool raw: whether the raw body should be returned
+        :rtype: str|dict
+        :return: the response content
+        :raises ApiError: in case of any error
         """
-        # Check for HTTP errors, and re-raise in case
         try:
             response.raise_for_status()
         except requests.RequestException as exception:
-            # Convert a RequestException into a ApiError
-            raise self._parse_request_exception(exception, response) from exception
+            raise cls._parse_exception(exception, response) from exception
 
-        # Otherwise return the data (either parsed or not) but reraise if we have an API error
         if raw:
             return response.content
         else:
-            data, error = self._parse_response(response)
-            if error:
-                raise error
-            else:
-                return data
-
-    def _build_url(self, sub_api, parts, requested_format="json"):
-        if sub_api not in self.SUB_APIS:
-            raise exceptions.InvalidArgument(sub_api)
-        if requested_format not in self.FORMATS:
-            raise exceptions.InvalidArgument(requested_format)
-        num_parts = 2 + len(parts)
-        pattern = "/".join(["%s"] * num_parts) + ".%s"
-        params = [self._url, sub_api] + parts + [requested_format]
-        return pattern % tuple(params)
-
-    def post(self, module, function, params=None, data=None, files=None, fmt="json"):
-        return self._request(
-            "POST", module, function, params=params, data=data, files=files, fmt=fmt
-        )
-
-    def get(self, module, function, params=None, fmt="json"):
-        return self._request("GET", module, function, params=params, fmt=fmt)
+            return cls._parse_response(response)
 
     def _request(
-        self, method, module, function, params, data=None, files=None, fmt="json"
-    ):
-        if isinstance(function, list):
-            functions = function
-        else:
-            functions = [function] if function else []
-        url = self._build_url(module, functions, requested_format=fmt)
-        return self.do_request(
-            method, url, params=params, data=data, files=files, fmt=fmt
-        )
-
-    def do_request(
         self,
-        method,
-        url,
-        params=None,
-        data=None,
-        files=None,
-        fmt="json",
-        raw=False,
-        raw_response=False,
-        headers=None,
-        stream_response=False,
-    ):
-        try:
-            fmt = fmt.lower().strip()
-        except AttributeError:
-            pass
+        method: str,
+        module: str,
+        function: Union[List[str], str],
+        params: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        files: Optional[Dict[str, str]] = None,
+        raw: bool = False,
+        raw_response: bool = False,
+        stream_response: bool = False,
+        fmt: str = "json",
+    ) -> Union[dict, str]:
+        """
+        Do the request (and authenticate first if needed).
 
-        if fmt and fmt not in self.FORMATS:
-            raise exceptions.InvalidArgument(
-                "Only {} supported".format(",".join(self.FORMATS))
-            )
-
-        if fmt != "json" and not raw:
-            raise exceptions.InvalidArgument("Non-json format requires raw=True")
-
-        if method not in {"POST", "GET"}:
-            raise exceptions.InvalidArgument("Only POST and GET supported")
-
+        :param str method: the HTTP request method
+        :param str module: the module to contact
+        :param list[str]|str function: a list of string (or a string) defining the route
+        :param dict[str, str] params: a dictionary of parameters
+        :param dict[str, str] data: used for POSTs
+        :param dict[str, str] headers: headers
+        :param dict[str, str] files: when downloading a file
+        :param str fmt: the requested format
+        :param bool raw: whether to return a non-JSON decoded response
+        :param bool raw_response: whether to return a raw Response object
+        :param bool stream_response: whether to download immediately
+        :rtype: str|dict
+        :return: the response content
+        :raises CommunicationError: if there was an error connecting to the resource
+        :raises ApiError: if there was on error on the server side
+        """
         if not self._is_logged_in():
             self._login()
 
         try:
             response = self._session.request(
                 method=method,
-                url=url,
-                data=data,
+                url=self._build_url(module, function, fmt=fmt),
                 params=params,
+                data=data,
+                headers=headers,
                 files=files,
                 verify=self._verify_ssl,
                 timeout=self._timeout,
                 stream=stream_response,
-                headers=headers,
             )
         except requests.RequestException as e:
             raise exceptions.CommunicationError(str(e)) from e
 
         if raw_response:
             return response
-        return self._handle_response(response, raw)
+        else:
+            return self._handle_response(response, raw)
+
+    def post(
+        self,
+        module: str,
+        function: Union[List[str], str],
+        params: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, str]] = None,
+        files: Optional[Dict[str, str]] = None,
+        fmt: str = "json",
+    ) -> Union[dict, str]:
+        """Utility method to issue a POST request (see '_request' for documentation)."""
+        return self._request(
+            method="POST",
+            module=module,
+            function=function,
+            params=params,
+            data=data,
+            files=files,
+            fmt=fmt,
+        )
+
+    def get(
+        self,
+        module: str,
+        function: Union[List[str], str],
+        params: Optional[Dict[str, str]] = None,
+        fmt: str = "json",
+    ) -> Union[dict, str]:
+        """Utility method to issue a GET request (see '_request' for documentation)."""
+        return self._request(
+            method="GET", module=module, function=function, params=params, fmt=fmt
+        )
 
 
 class PortalClient(AbstractClient):
     """Simple client to query the user portal API (PAPI)."""
 
-    FMT_KB = "%Y-%m-%d %H:%M:%S"
+    MODULES = ("analysis", "knowledgebase", "login")
 
-    def _login(self):
+    FORMATS = ("json",)
+
+    def _login(self) -> None:
         """Implement interface (portal client relies on 'username' and 'password')."""
         if self._session is None:
             self._session = requests.sessions.session()
         self.post("login", function=None, data=self._login_params)
 
-    def get_tasks_from_knowledgebase(self, query_string, **kwargs):
+    def get_tasks_from_knowledgebase(
+        self, query_string: str, **kwargs
+    ) -> List[Dict[str, Any]]:
         """
-        Query tasks from the knowledgebase.
+        Query tasks from the knowledgebase, most recent first.
 
         :param str query_string: the query string
         :param kwargs: additional key worded arguments
@@ -272,24 +340,24 @@ class PortalClient(AbstractClient):
                 }
             ]
         """
-        if not query_string:
-            return []
         malscape_tasks = self.get(
             module="knowledgebase",
             function="query_malscape_tasks",
             params={"query_string": query_string, **kwargs},
         ).get("tasks", [])
-        return sorted(
-            more_itertools.unique_everseen(
-                iterable=malscape_tasks, key=lambda x: x["task_uuid"]
-            ),
+        unique_malscape_tasks = more_itertools.unique_everseen(
+            iterable=malscape_tasks, key=lambda x: x["task_uuid"]
+        )
+        sorted_malscape_tasks = sorted(
+            unique_malscape_tasks,
             key=lambda x: datetime.datetime.strptime(
-                x["submission"], tau_clients.DATETIME_FMT
+                x["submission"], self.DATETIME_FMT
             ),
             reverse=True,
         )
+        return sorted_malscape_tasks
 
-    def get_progress(self, uuid):
+    def get_progress(self, uuid: str) -> Dict[str, int]:
         """
         Get the completion progress of a given task.
 
@@ -304,7 +372,7 @@ class PortalClient(AbstractClient):
         params = tau_clients.purge_none({"uuid": uuid})
         return self.get("analysis", "get_progress", params=params)
 
-    def get_result(self, uuid):
+    def get_result(self, uuid: str) -> Dict[str, Any]:
         """
         Get report results for a given task.
 
@@ -315,7 +383,13 @@ class PortalClient(AbstractClient):
         params = tau_clients.purge_none({"uuid": uuid, "report_format": "json"})
         return self.get("analysis", "get_result", params=params)
 
-    def submit_url(self, url, referer=None, user_agent=None, bypass_cache=False):
+    def submit_url(
+        self,
+        url: str,
+        referer: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        bypass_cache: bool = False,
+    ) -> Dict[str, Any]:
         """
         Upload an URL to be analyzed.
 
@@ -357,13 +431,13 @@ class PortalClient(AbstractClient):
 
     def submit_file(
         self,
-        file_data,
-        file_name=None,
-        password=None,
-        analysis_env=None,
-        allow_network_traffic=True,
-        bypass_cache=False,
-    ):
+        file_data: bytes,
+        file_name: Optional[str] = None,
+        password: Optional[str] = None,
+        analysis_env: Optional[str] = None,
+        allow_network_traffic: bool = True,
+        bypass_cache: bool = False,
+    ) -> Dict[str, Any]:
         """
         Upload a file to be analyzed.
 
@@ -411,7 +485,11 @@ class PortalClient(AbstractClient):
 class AnalysisClient(AbstractClient):
     """"Simple client to query the analysis API (Malscape)."""
 
-    def _login(self):
+    MODULES = ("analysis", "authentication")
+
+    FORMATS = ("json", "xml")
+
+    def _login(self) -> None:
         """Implement interface (analysis client relies on 'key' and 'api_token')."""
         if self._session is None:
             self._session = requests.sessions.session()
@@ -419,7 +497,7 @@ class AnalysisClient(AbstractClient):
             "authentication", "login", data=tau_clients.purge_none(self._login_params)
         )
 
-    def query_file_hash(self, file_hash):
+    def query_file_hash(self, file_hash: str) -> Dict[str, Any]:
         """
         Search for existing analysis results with the given file hash.
 
@@ -434,7 +512,7 @@ class AnalysisClient(AbstractClient):
                         'file_md5': '25ea2092ffc29fde64175a19a5795bf7',
                         'task_uuid': 'dbc8b217c32a00102d2f5c684d666f47',
                         'score': 100,
-                        'file_sha256': '9f247f42114e7449b3dc5ed99ee706fbe1f239afb5beff279824bc67d83afba9'
+                        'file_sha256': '9f247f42114e7449b3dc5ed99ee706fbe1f239...'
                     }
                 ],
                 'files_found': 1
@@ -448,7 +526,9 @@ class AnalysisClient(AbstractClient):
         )
         return self.get("analysis", ["query", "file_hash"], params=params)
 
-    def get_analysis_tags(self, uuid, allow_datacenter_redirect=None):
+    def get_analysis_tags(
+        self, uuid: str, allow_datacenter_redirect: bool = None
+    ) -> Dict[str, Any]:
         """
         Get the analysis tags for an analysis task.
 
@@ -471,7 +551,7 @@ class AnalysisClient(AbstractClient):
                         'data': {
                             'score': 70,
                             'type': 'activity',
-                            'value': 'Execution: Ability to download and execute commands from memory via PowerShell'
+                            'value': 'Execution: Ability to download and execute commands'
                         },
                         'format': 'typed_tag'
                     },
@@ -499,7 +579,7 @@ class AnalysisClient(AbstractClient):
         )
         return self.get("analysis", "get_analysis_tags", params=params)
 
-    def get_progress(self, uuid):
+    def get_progress(self, uuid: str) -> Dict[str, int]:
         """
         Get the completion progress of a given task.
 
@@ -514,7 +594,12 @@ class AnalysisClient(AbstractClient):
         params = {"uuid": uuid}
         return self.get("analysis", "get_progress", params=params)
 
-    def get_completed(self, after, before=None, include_score=False):
+    def get_completed(
+        self,
+        after: Union[datetime.datetime, str],
+        before: Optional[Union[datetime.datetime, str]] = None,
+        include_score: bool = False,
+    ) -> Dict[str, Any]:
         """
         Get the list of uuids of tasks that were completed within a given time frame.
 
@@ -531,9 +616,9 @@ class AnalysisClient(AbstractClient):
             }
         """
         if hasattr(before, "strftime"):
-            before = before.strftime(tau_clients.DATETIME_FMT)
+            before = before.strftime(self.DATETIME_FMT)
         if hasattr(after, "strftime"):
-            after = after.strftime(tau_clients.DATETIME_FMT)
+            after = after.strftime(self.DATETIME_FMT)
         params = tau_clients.purge_none(
             {
                 "before": before,
@@ -543,12 +628,11 @@ class AnalysisClient(AbstractClient):
         )
         return self.get("analysis", "completed", params=params)
 
-    def get_result(self, uuid):
+    def get_result(self, uuid: str) -> Dict[str, Any]:
         """
         Get report results for a given task.
 
         :param str uuid: the unique identifier of the submitted task
-        :rtype: dict[str, any]
         :rtype: dict[str, any]
         :return: a dictionary containing the analysis report
         """
@@ -557,14 +641,14 @@ class AnalysisClient(AbstractClient):
 
     def submit_file(
         self,
-        file_data,
-        file_name=None,
-        password=None,
-        analysis_env=None,
-        allow_network_traffic=True,
-        bypass_cache=False,
-        include_report=False,
-    ):
+        file_data: bytes,
+        file_name: Optional[str] = None,
+        password: Optional[str] = None,
+        analysis_env: Optional[str] = None,
+        allow_network_traffic: bool = True,
+        bypass_cache: bool = False,
+        include_report: bool = False,
+    ) -> Dict[str, Any]:
         """
         Upload a file to be analyzed.
 
@@ -573,7 +657,7 @@ class AnalysisClient(AbstractClient):
         :param str|None password: if set, use it to extract the sample
         :param str|None analysis_env: if set, e.g windowsxp
         :param boolean allow_network_traffic: if set to False, deny network connections
-        :param boolean bypass_cache: whether to re-process a file (requires special permissions)
+        :param boolean bypass_cache: whether to re-process a file
         :rtype: dict[str, any]
         :return: a dictionary in the following form if the analysis is already available:
             {
@@ -606,18 +690,9 @@ class AnalysisClient(AbstractClient):
                 "full_report_score": -1,
             }
         )
+        # We force an ASCII name to wor-around flask/werkzeug issues server side
         files = tau_clients.purge_none(
-            {
-                # If an explicit filename was provided, we can pass it down to
-                # python-requests to use it in the multipart/form-data. This avoids
-                # having python-requests trying to guess the filename based on stream
-                # attributes.
-                #
-                # The problem with this is that, if the filename is not ASCII, then
-                # this triggers a bug in flask/werkzeug which means the file is
-                # thrown away. Thus, we just force an ASCII name
-                "file": ("dummy-ascii-name-for-file-param", io.BytesIO(file_data))
-            }
+            {"file": ("dummy-ascii-name-for-file-param", io.BytesIO(file_data))}
         )
         ret_data = self.post("analysis", ["submit", "file"], data=data, files=files)
         if not include_report:
@@ -626,12 +701,12 @@ class AnalysisClient(AbstractClient):
 
     def submit_url(
         self,
-        url,
-        referer=None,
-        user_agent=None,
-        bypass_cache=False,
-        include_report=False,
-    ):
+        url: str,
+        referer: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        bypass_cache: bool = False,
+        include_report: bool = False,
+    ) -> Dict[str, Any]:
         """
         Upload an URL to be analyzed.
 

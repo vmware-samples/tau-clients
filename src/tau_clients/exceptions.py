@@ -1,3 +1,9 @@
+"""
+:Copyright:
+    Copyright 2021 VMware, Inc.  All Rights Reserved.
+"""
+
+
 class InvalidArgument(Exception):
     """Error raised invalid."""
 

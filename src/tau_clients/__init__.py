@@ -1,26 +1,45 @@
 """
-Lastline API Client and Utilities.
-
 :Copyright:
-    Copyright 2020 VMware, Inc.  All Rights Reserved.
+    Copyright 2021 VMware, Inc.  All Rights Reserved.
 """
 import re
 from urllib import parse
+from typing import Optional, Dict, Any
 
 
-DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
-
+# All the domains that are used whenever NSX ATA is hosted
 NSX_DEFENDER_HOSTED_DOMAINS = frozenset(
-    ["user.lastline.com", "user.us.lastline.com", "user.emea.lastline.com"]
+    [
+        "user.lastline.com",
+        "user.us.lastline.com",
+        "user.emea.lastline.com",
+        "analysis.lastline.com",
+        "analysis.us.lastline.com",
+        "analysis.emea.lastline.com",
+    ]
 )
 
+# These are constants representing NSX data centers
+NSX_DEFENDER_DC_WESTUS = "west.us"
+NSX_DEFENDER_DC_NLEMEA = "nl.emea"
 
-def purge_none(d):
+NSX_DEFENDER_ANALYSIS_URLS = {
+    NSX_DEFENDER_DC_WESTUS: "https://analysis.us.lastline.com",
+    NSX_DEFENDER_DC_NLEMEA: "https://analysis.emea.lastline.com",
+}
+
+NSX_DEFENDER_PORTAL_URLS = {
+    NSX_DEFENDER_DC_WESTUS: "https://user.us.lastline.com",
+    NSX_DEFENDER_DC_NLEMEA: "https://user.emea.lastline.com",
+}
+
+
+def purge_none(d: Dict[Any, Any]) -> Dict[Any, Any]:
     """Purge None entries from a dictionary."""
     return {k: v for k, v in d.items() if v is not None}
 
 
-def get_hash_type(hash_value):
+def get_hash_type(hash_value: str) -> str:
     """Get the hash type."""
     if len(hash_value) == 32:
         return "md5"
@@ -32,9 +51,10 @@ def get_hash_type(hash_value):
         return None
 
 
-def get_task_link(uuid, analysis_url=None, portal_url=None):
+def get_task_link(uuid: str, analysis_url: Optional[str]=None, portal_url: Optional[str]=None) -> str:
     """
     Get the task link given the task uuid and at least one API url.
+
     :param str uuid: the task uuid
     :param str|None analysis_url: the URL to the analysis API endpoint
     :param str|None portal_url: the URL to the portal API endpoint
@@ -50,9 +70,10 @@ def get_task_link(uuid, analysis_url=None, portal_url=None):
     return parse.urljoin(portal_url, portal_url_path)
 
 
-def get_portal_url_from_task_link(task_link):
+def get_portal_url_from_task_link(task_link: str) -> str:
     """
     Return the portal API url related to the provided task link.
+
     :param str task_link: a link
     :rtype: str
     :return: the portal API url
@@ -61,9 +82,10 @@ def get_portal_url_from_task_link(task_link):
     return "{uri.scheme}://{uri.netloc}/papi".format(uri=parsed_uri)
 
 
-def get_uuid_from_task_link(task_link):
+def get_uuid_from_task_link(task_link: str) -> str:
     """
     Return the uuid from a task link.
+
     :param str task_link: a link
     :rtype: str
     :return: the uuid
@@ -77,9 +99,10 @@ def get_uuid_from_task_link(task_link):
         )
 
 
-def is_task_hosted(task_link):
+def is_task_hosted(task_link: str) -> bool:
     """
     Return whether the portal link is pointing to a hosted submission.
+
     :param str task_link: a link
     :rtype: boolean
     :return: whether the link points to a hosted analysis
