@@ -1,7 +1,5 @@
-"""
-:Copyright:
-    Copyright 2021 VMware, Inc.  All Rights Reserved.
-"""
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2
 
 
 class InvalidArgument(Exception):

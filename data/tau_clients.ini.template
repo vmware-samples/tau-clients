@@ -1,6 +1,5 @@
 [portal]
 url = https://user.lastline.com/papi
-auth_method = account
 username =
 password =
 verify_ssl = True
@@ -8,7 +7,6 @@ timeout = 60
 
 [analysis]
 url = https://analysis.lastline.com/
-auth_method = account
 key =
 api_token =
 verify_ssl = True

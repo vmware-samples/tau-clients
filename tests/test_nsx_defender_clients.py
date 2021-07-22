@@ -1,17 +1,18 @@
 #!/usr/bin/env python
-"""
-:Copyright:
-    Copyright 2021 VMware, Inc.  All Rights Reserved.
-"""
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2
 import json
 import unittest
+from typing import Dict
+from typing import Optional
+from typing import Union
 from unittest.mock import call
 
 import ddt
 import mock
 import requests.exceptions
 from tau_clients import exceptions
-from tau_clients import nsx_ata
+from tau_clients import nsx_defender
 
 
 PORTAL_AUTH_DATA = {"username": "asd", "password": "dsa"}
@@ -23,7 +24,17 @@ TEST_UUID = "a" * 32
 TEST_API_URL = "https://<base>"
 
 
-def mock_response(status_code, content=None):
+def mock_response(
+    status_code: int, content: Optional[Union[str, Dict]] = None
+) -> requests.Response:
+    """
+    Mock response.
+
+    :param int status_code: the HTTP response code
+    :param dict|str|None content: the option content
+    :rtype: requests.Response
+    :return: the mocked response
+    """
     res = requests.Response()
     res.status_code = status_code
     res.url = TEST_API_URL
@@ -35,6 +46,8 @@ def mock_response(status_code, content=None):
 
 @ddt.ddt
 class AbstractClientTestCase(unittest.TestCase):
+    """Test some utilities."""
+
     @ddt.data(
         (("login", []), "{}/login.json".format(TEST_API_URL)),
         (("login", []), "{}/login.json".format(TEST_API_URL)),
@@ -48,24 +61,28 @@ class AbstractClientTestCase(unittest.TestCase):
             "{}/knowledgebase/test/test2.json".format(TEST_API_URL),
         ),
     )
-    def test_join_url(self, args):
+    def test_build_url(self, args):
+        """Test the method 'build_url'."""
         arguments, expected = args
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
         self.assertEqual(client._build_url(*arguments), expected)
 
 
 class PortalClientTestCase(unittest.TestCase):
+    """Test the portal client."""
+
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client__request_exception(self, requests_mock, session_mock):
+        """Test the portal client when there is a timeout."""
         exception_message = "timeout"
         session_mock.request.side_effect = [requests.ReadTimeout(exception_message)]
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
         )
         with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
@@ -74,6 +91,7 @@ class PortalClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client__http_error(self, requests_mock, session_mock):
+        """Test the portal client when there is a HTTP error."""
         exception_msg_regex = (
             r"No success field in response \(500 Server "
             r"Error: code for url: {}\)".format(TEST_API_URL)
@@ -82,7 +100,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
         )
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
@@ -91,6 +109,7 @@ class PortalClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client__api_http_error(self, requests_mock, session_mock):
+        """Test the portal client when there is a HTTP error and some API error data."""
         exception_msg_regex = (
             r"API Error \(3000\) \(500 Server "
             r"Error: code for url: {}\)".format(TEST_API_URL)
@@ -101,7 +120,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
         )
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
@@ -110,6 +129,7 @@ class PortalClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client__api_error(self, requests_mock, session_mock):
+        """Test the portal client when there is an authentication error."""
         exception_msg_regex = r"Authentication Error \(3004\)"
         session_mock.request.side_effect = [
             mock_response(
@@ -119,7 +139,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
         )
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
@@ -128,6 +148,7 @@ class PortalClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_open_client(self, requests_mock, session_mock):
+        """Test the portal client."""
         expected_result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
             mock_response(200, {"success": "1", "data": "true"}),
@@ -136,7 +157,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.PortalClient(
+        client = nsx_defender.PortalClient(
             api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
         )
         ret = client.get_progress(TEST_UUID)
@@ -172,15 +193,18 @@ class PortalClientTestCase(unittest.TestCase):
 
 
 class AnalysisClientTestCase(unittest.TestCase):
+    """Test the analysis client."""
+
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_analysis_client__request_exception(self, requests_mock, session_mock):
+        """Test the analysis client when there is a timeout."""
         exception_message = "timeout"
         session_mock.request.side_effect = [requests.ReadTimeout(exception_message)]
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.AnalysisClient(
+        client = nsx_defender.AnalysisClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
         with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
@@ -189,6 +213,7 @@ class AnalysisClientTestCase(unittest.TestCase):
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
     def test_analysis_client(self, requests_mock, session_mock):
+        """Test the analysis client."""
         expected_result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
             mock_response(200, {"success": "1", "data": "true"}),
@@ -197,7 +222,7 @@ class AnalysisClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_ata.AnalysisClient(
+        client = nsx_defender.AnalysisClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
         ret = client.get_progress(TEST_UUID)
