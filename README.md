@@ -1,5 +1,5 @@
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/vmware-samples/tau-clients)
-![GitHub](https://img.shields.io/github/license/vmware-samples/tau-clients)
+![GitHub](https://img.shields.io/pypi/l/tau-clients)
 ![GitHub issues](https://img.shields.io/github/issues/vmware-samples/tau-clients)
 
 
