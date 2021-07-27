@@ -1,13 +1,20 @@
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2
+import collections
+import functools
+import io
 import re
 from typing import Any
+from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Sized
+from typing import Union
 from urllib import parse
 
 
-# All the domains that are used whenever NSX ATA is hosted
+# All the domains that are used whenever NSX Defender is hosted
 NSX_DEFENDER_HOSTED_DOMAINS = frozenset(
     [
         "user.lastline.com",
@@ -19,7 +26,7 @@ NSX_DEFENDER_HOSTED_DOMAINS = frozenset(
     ]
 )
 
-# These are constants representing NSX data centers
+# These are constants representing NSX Defender data centers
 NSX_DEFENDER_DC_WESTUS = "west.us"
 NSX_DEFENDER_DC_NLEMEA = "nl.emea"
 
@@ -36,12 +43,24 @@ NSX_DEFENDER_PORTAL_URLS = {
 NSX_DEFENDER_PORTAL_LB_URL = "https://user.lastline.com"
 
 
+# Metadata types that can be returned from 'AnalysisClient.get_result'
+METADATA_TYPE_PCAP = "traffic_capture"
+METADATA_TYPE_PROCESS_SNAPSHOT = "process_snapshot"
+METADATA_TYPE_YARA_STRINGS = "codehash_yara_strings"
+METADATA_TYPE_CODEHASH = "codehash"
+METADATA_TYPE_SCREENSHOT = "screenshot"
+METADATA_TYPE_SFC = "sfc2_feature_reuse_report"
+
+# Report types
+REPORT_TYPE_SANDBOX = "ll-int-win"
+
+
 def purge_none(d: Dict[Any, Any]) -> Dict[Any, Any]:
     """Purge None entries from a dictionary."""
     return {k: v for k, v in d.items() if v is not None}
 
 
-def get_hash_type(hash_value: str) -> str:
+def get_hash_type(hash_value: str) -> Optional[str]:
     """Get the hash type."""
     if len(hash_value) == 32:
         return "md5"
@@ -97,9 +116,7 @@ def get_uuid_from_task_link(task_link: str) -> str:
     try:
         return re.findall("[a-fA-F0-9]{32}", task_link)[0]
     except IndexError:
-        raise ValueError(  # pylint: disable=W0707
-            "Link does not contain a valid task uuid"
-        )
+        raise ValueError("Link does not contain a valid task uuid")  # pylint: disable=W0707
 
 
 def is_task_hosted(task_link: str) -> bool:
@@ -114,3 +131,51 @@ def is_task_hosted(task_link: str) -> bool:
         if domain in task_link:
             return True
     return False
+
+
+def merge_dicts(
+    sequence_of_dict: Union[Sized, List],
+    reduce_funcs: Optional[Dict[str, Callable]] = None,
+) -> Dict[str, Any]:
+    """
+    Merge a list o dictionary using custom functions to merge values.
+
+    :param list[dict]|sized[dict] sequence_of_dict: a sequence of dicts
+    :param dict[str, callable]|None reduce_funcs: a list of reduce functions indexed by key
+    :rtype: dict[str, any]
+    :return: a fully merged dictionary
+    """
+    if len(sequence_of_dict) == 1:
+        # this is necessary to support views on dictionary values
+        try:
+            return sequence_of_dict[0]
+        except TypeError:
+            return next(iter(sequence_of_dict))
+    if not reduce_funcs:
+        reduce_funcs = {}
+    # We get the keys that are in common
+    common_keys = set.intersection(*map(set, sequence_of_dict))
+    # While here we merge all dictionaries without caring about overlapping keys
+    merged_dict = dict(collections.ChainMap(*sequence_of_dict))
+    # And here we use the 'lambdas' to properly merge common keys
+    for k in common_keys:
+        values_with_common_key = [d[k] for d in sequence_of_dict]
+        merged_dict[k] = functools.reduce(
+            reduce_funcs.get(k, lambda x, y: x + y),
+            values_with_common_key,
+        )
+    return merged_dict
+
+
+class NamedBytesIO(io.BytesIO):
+    """Buffer I/O with a name."""
+
+    def __init__(self, content: bytes, name: str) -> None:
+        """Constructor."""
+        super().__init__(content)
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        """Property returning the file name."""
+        return self._name

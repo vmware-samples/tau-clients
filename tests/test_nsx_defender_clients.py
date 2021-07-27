@@ -1,16 +1,19 @@
 #!/usr/bin/env python
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2
+import configparser
+import gc
 import json
 import unittest
+from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import Union
 from unittest.mock import call
 
 import ddt
 import mock
 import requests.exceptions
+import tau_clients
 from tau_clients import exceptions
 from tau_clients import nsx_defender
 
@@ -25,13 +28,18 @@ TEST_API_URL = "https://<base>"
 
 
 def mock_response(
-    status_code: int, content: Optional[Union[str, Dict]] = None
+    status_code: int,
+    content: Optional[Any] = None,
+    headers: Optional[Dict] = None,
+    raw: bool = False,
 ) -> requests.Response:
     """
     Mock response.
 
     :param int status_code: the HTTP response code
-    :param dict|str|None content: the option content
+    :param Any|None content: the option content
+    :param Any|Dict headers: the headers
+    :param bool raw: whether it is raw content
     :rtype: requests.Response
     :return: the mocked response
     """
@@ -39,8 +47,12 @@ def mock_response(
     res.status_code = status_code
     res.url = TEST_API_URL
     res.reason = "code"
+    res.headers = headers or {}
     if content:
-        res._content = json.dumps(content).encode("utf-8")
+        if raw:
+            res._content = content
+        else:
+            res._content = json.dumps(content).encode("utf-8")
     return res
 
 
@@ -52,6 +64,7 @@ class AbstractClientTestCase(unittest.TestCase):
         (("login", []), "{}/login.json".format(TEST_API_URL)),
         (("login", []), "{}/login.json".format(TEST_API_URL)),
         (("analysis", ["test"]), "{}/analysis/test.json".format(TEST_API_URL)),
+        (("analysis", ["test"], None), "{}/analysis/test".format(TEST_API_URL)),
         (
             ("knowledgebase", ["test"], "json"),
             "{}/knowledgebase/test.json".format(TEST_API_URL),
@@ -64,9 +77,7 @@ class AbstractClientTestCase(unittest.TestCase):
     def test_build_url(self, args):
         """Test the method 'build_url'."""
         arguments, expected = args
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA)
         self.assertEqual(client._build_url(*arguments), expected)
 
 
@@ -82,9 +93,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
         with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
             _ = client.get_progress(TEST_UUID)
 
@@ -100,9 +109,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
@@ -111,8 +118,7 @@ class PortalClientTestCase(unittest.TestCase):
     def test_open_client__api_http_error(self, requests_mock, session_mock):
         """Test the portal client when there is a HTTP error and some API error data."""
         exception_msg_regex = (
-            r"API Error \(3000\) \(500 Server "
-            r"Error: code for url: {}\)".format(TEST_API_URL)
+            r"API Error \(3000\) \(500 Server " r"Error: code for url: {}\)".format(TEST_API_URL)
         )
         session_mock.request.side_effect = [
             mock_response(500, {"success": 0, "error_code": 3000, "error": "API Error"})
@@ -120,9 +126,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
@@ -139,9 +143,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
         with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
@@ -157,9 +159,7 @@ class PortalClientTestCase(unittest.TestCase):
         requests_mock.session.return_value = session_mock
 
         # Test the code
-        client = nsx_defender.PortalClient(
-            api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA
-        )
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
         ret = client.get_progress(TEST_UUID)
 
         # Verify the asserts
@@ -250,6 +250,370 @@ class AnalysisClientTestCase(unittest.TestCase):
                     stream=False,
                     timeout=mock.ANY,
                     url="{}/analysis/get_progress.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret, expected_result)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_analysis_client__get_process_snapshot_names(self, requests_mock, session_mock):
+        """Test the analysis client when getting process snapshot names."""
+        expected_result = [
+            {
+                "task_uuid": TEST_UUID,
+                "report_uuid": "REPORT_UUID",
+                "artifact_name": "NAME",
+                "artifact_type": tau_clients.METADATA_TYPE_PCAP,
+            }
+        ]
+        expected_result_1 = {
+            "report": {},
+            "reports": [{"report_version": "<data>", "report_uuid": "REPORT_UUID"}],
+        }
+        expected_result_2 = {
+            "report": {
+                "analysis_metadata": [
+                    {"name": "NAME", "metadata_type": tau_clients.METADATA_TYPE_PCAP}
+                ]
+            },
+            "reports": [{"report_version": "<data>", "report_uuid": "REPORT_UUID"}],
+        }
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": expected_result_1}),
+            mock_response(200, {"success": "1", "data": expected_result_2}),
+        ]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_defender.AnalysisClient(
+            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
+        )
+        ret = client.get_result_artifact_names(TEST_UUID)
+
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"uuid": TEST_UUID, "full_report_score": -1},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/get.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={
+                        "uuid": TEST_UUID,
+                        "report_uuid": "REPORT_UUID",
+                        "full_report_score": 0,
+                    },
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/get.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret, expected_result)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_analysis_client__get_artifact(self, requests_mock, session_mock):
+        """Test the analysis client when getting an artifact."""
+        expected_data = b"datadata"
+        file_name = "file_name.bin"
+        expected_file_name = "d0b54a6b712cc633e4f9ca3ede91807eb23eaef271e165e4c245c4bf83c3385d"
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(
+                200,
+                expected_data,
+                {"content-disposition": "attachment; filename={}".format(file_name)},
+                raw=True,
+            ),
+        ]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_defender.AnalysisClient(
+            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
+        )
+        ret = client.get_artifact(TEST_UUID, "REPORT_UUID", "NAME")
+
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(TEST_API_URL),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={
+                        "uuid": TEST_UUID,
+                        "report_uuid": "REPORT_UUID",
+                        "artifact_name": "NAME",
+                    },
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/get_report_artifact".format(TEST_API_URL),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret.read(), expected_data)
+        self.assertEqual(ret.name, expected_file_name)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_analysis_client__get_artifact__api_error(self, requests_mock, session_mock):
+        """Test the analysis client when getting an artifact and erroring out."""
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(403, "asd"),
+        ]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_defender.AnalysisClient(
+            api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
+        )
+        with self.assertRaisesRegexp(exceptions.ApiError, "403 Client Error"):
+            _ = client.get_artifact(TEST_UUID, "REPORT_UUID", "NAME")
+
+
+class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
+    """Test the analysis client."""
+
+    def setUp(self) -> None:
+        super(MultiDataCenterAnalysisClientTestCase, self).setUp()
+        self.conf = configparser.ConfigParser()
+        self.conf.add_section("analysis")
+        self.conf.set("analysis", "api_token", "dsa")
+        self.conf.set("analysis", "key", "asd")
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_multi_analysis_client__multi_dispatch(self, requests_mock, session_mock):
+        """Test the multi analysis client with multi dispatch."""
+        expected_result = {"progress": 200, "completed": 2}
+        result = {"progress": 100, "completed": 1}
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": result}),
+        ]
+        requests_mock.session.return_value = session_mock
+        # Test the code
+        client = nsx_defender.MultiDataCenterAnalysisClient.from_conf(self.conf, "analysis")
+        ret = client.query_file_hash("a" * 32)
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"hash_value": "a" * 32, "hash_algorithm": "md5"},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/query/file_hash.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_NLEMEA]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"hash_value": "a" * 32, "hash_algorithm": "md5"},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/query/file_hash.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_NLEMEA]
+                    ),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret, expected_result)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_multi_analysis_client__multi_dispatch_reset(self, requests_mock, session_mock):
+        """Test the multi analysis client with multi dispath but reset."""
+        expected_result = {"progress": 200, "completed": 2}
+        result = {"progress": 100, "completed": 1}
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": result}),
+        ]
+        requests_mock.session.return_value = session_mock
+        # Test the code
+        client = nsx_defender.MultiDataCenterAnalysisClient.from_conf(self.conf, "analysis")
+        ret = client.query_file_hash("a" * 32)
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"hash_value": "a" * 32, "hash_algorithm": "md5"},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/query/file_hash.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_NLEMEA]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"hash_value": "a" * 32, "hash_algorithm": "md5"},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/query/file_hash.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_NLEMEA]
+                    ),
+                    verify=True,
+                ),
+            ]
+        )
+        self.assertEqual(ret, expected_result)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_multi_analysis_client__single_dispatch(self, requests_mock, session_mock):
+        """Test the multi analysis client with a single dispatch method."""
+        expected_result = {"progress": 100, "completed": 1}
+        result = {"progress": 100, "completed": 1}
+        session_mock.request.side_effect = [
+            mock_response(200, {"success": "1", "data": "true"}),
+            mock_response(200, {"success": "1", "data": result}),
+        ]
+        requests_mock.session.return_value = session_mock
+        # Test the code
+        client = nsx_defender.MultiDataCenterAnalysisClient.from_conf(self.conf, "analysis")
+        ret = client.get_progress(TEST_UUID)
+        # Verify the asserts
+        session_mock.request.assert_has_calls(
+            [
+                call(
+                    data=ANALYSIS_AUTH_DATA,
+                    params=None,
+                    files=None,
+                    headers=None,
+                    method="POST",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/authentication/login.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
+                    verify=True,
+                ),
+                call(
+                    data=None,
+                    params={"uuid": TEST_UUID},
+                    files=None,
+                    headers=None,
+                    method="GET",
+                    stream=False,
+                    timeout=mock.ANY,
+                    url="{}/analysis/get_progress.json".format(
+                        tau_clients.NSX_DEFENDER_ANALYSIS_URLS[tau_clients.NSX_DEFENDER_DC_WESTUS]
+                    ),
                     verify=True,
                 ),
             ]

@@ -26,13 +26,13 @@ resources, with a focus on threat analysis and intelligence collection.
 
 This package can be installed via pip, just run `pip install tau-clients` or `pip install -e .`
 
-To run a simple example just create a valid configuration file using `config.ini.template`.
+To run a simple example just create a valid configuration file using `data/tau_clients.ini.template`.
 ```python
 import configparser
 from tau_clients import nsx_defender
 
 conf = configparser.ConfigParser()
-conf.read("./config.ini")
+conf.read("./data/tau_clients.ini")
 portal_client = nsx_defender.PortalClient.from_conf(conf, "portal")
 result = portal_client.get_tasks_from_knowledgebase(
     query_string="file_sha1: 'ba81b98f00168b86578e5f5de93d26ed83769432'",
