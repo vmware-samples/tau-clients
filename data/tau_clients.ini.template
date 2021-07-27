@@ -11,3 +11,6 @@ key =
 api_token =
 verify_ssl = True
 timeout = 60
+
+[vt]
+apikey =

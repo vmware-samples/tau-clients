@@ -2,7 +2,6 @@
 ![GitHub](https://img.shields.io/pypi/l/tau-clients)
 ![GitHub issues](https://img.shields.io/github/issues/vmware-samples/tau-clients)
 
-
 # Threat Analysis Unit Clients
 
 ## Overview
@@ -21,23 +20,32 @@ resources, with a focus on threat analysis and intelligence collection.
 * A fully supported commercial implementation of `AnalysisClient` is available here:
   https://analysis.lastline.com/analysis/api-docs/html/analysis_client.html
 
-
 ### Build & Run
 
 This package can be installed via pip, just run `pip install tau-clients` or `pip install -e .`
 
-To run a simple example just create a valid configuration file using `config.ini.template`.
+To run a simple example just create a valid configuration file using `data/tau_clients.ini.template`.
 ```python
 import configparser
 from tau_clients import nsx_defender
 
 conf = configparser.ConfigParser()
-conf.read("./config.ini")
+conf.read("./data/tau_clients.ini")
 portal_client = nsx_defender.PortalClient.from_conf(conf, "portal")
 result = portal_client.get_tasks_from_knowledgebase(
     query_string="file_sha1: 'ba81b98f00168b86578e5f5de93d26ed83769432'",
 )
 ```
+
+### Scripts
+
+This package includes the following console scripts ready to be used (assuming a valid
+configuration file is also provided):
+
+* `download_artifacts.py`: download all the available analysis artifacts given a file has or
+  task uuid.
+* `submit_samples.py`: submit the samples contained in the provided directory; if a file hash is
+  provided download the sample from VirusTotal.
 
 ## Contributing
 
