@@ -5,9 +5,11 @@ import configparser
 import datetime
 import gc
 import io
+import json
 import unittest
 
 import mock
+import tau_clients
 from nose.plugins.attrib import attr
 from tau_clients import exceptions
 from tau_clients import nsx_defender
@@ -183,6 +185,25 @@ class TestLiveNSXDefenderClients(unittest.TestCase):
         )
         ret = analysis_client3.query_file_hash(TEST_SHA256)
         self.assertEqual(ret["files_found"], 0)
+
+    def test_result_parser(self):
+        """Test ResultParser."""
+        analysis_client = nsx_defender.AnalysisClient.from_conf(self.conf, "analysis")
+        report = analysis_client.get_result(TEST_UUID)
+        analysis_link = tau_clients.get_task_link(
+            uuid=TEST_UUID,
+            analysis_url=analysis_client.base,
+            prefer_load_balancer=True,
+        )
+        result_parser = tau_clients.ResultParser()
+        misp_event = result_parser.parse(analysis_link, report)
+        result = json.loads(misp_event.to_json())
+        self.assertDictContainsSubset(
+            {
+                "Object": mock.ANY,
+            },
+            result,
+        )
 
 
 if __name__ == "__main__":
