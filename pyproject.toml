@@ -13,6 +13,7 @@ isolated_build = True
 
 [testenv]
 commands=nosetests
+extras=misp
 deps=
     ddt
     mock
