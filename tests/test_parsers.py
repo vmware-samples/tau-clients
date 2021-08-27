@@ -8,15 +8,63 @@ import ddt
 import mock
 from tau_clients import parsers
 
-REPORT1_LOCATION = "./data/report1.txt"
-REPORT2_LOCATION = "./data/report2.txt"
+REPORT1_LOCATION = "./data/task_uuid1.json"
+REPORT2_LOCATION = "./data/task_uuid2.json"
 ANALYSIS_LINK1 = (
     "https://user.lastline.com/portal#/analyst/task/f5aba6c1573600100eb9536af678ff2f/overview"
 )
 ANALYSIS_LINK2 = (
     "https://user.lastline.com/portal#/analyst/task/dd3887255af0001029a38ffcb0d840a4/overview"
 )
-EXPECTED_ATTRIBUTE = {
+EXPECTED_OBJECT_1 = {
+    "Attribute": [
+        {
+            "uuid": mock.ANY,
+            "object_relation": mock.ANY,
+            "value": "723cd30b9a09f9954962a96a6c1c2826",
+            "type": mock.ANY,
+            "disable_correlation": mock.ANY,
+            "to_ids": mock.ANY,
+            "category": mock.ANY,
+        },
+        {
+            "uuid": mock.ANY,
+            "object_relation": mock.ANY,
+            "value": mock.ANY,
+            "type": mock.ANY,
+            "disable_correlation": mock.ANY,
+            "to_ids": mock.ANY,
+            "category": mock.ANY,
+        },
+        {
+            "uuid": mock.ANY,
+            "object_relation": mock.ANY,
+            "value": mock.ANY,
+            "type": mock.ANY,
+            "disable_correlation": mock.ANY,
+            "to_ids": mock.ANY,
+            "category": mock.ANY,
+        },
+        {
+            "uuid": mock.ANY,
+            "object_relation": mock.ANY,
+            "value": mock.ANY,
+            "type": mock.ANY,
+            "disable_correlation": mock.ANY,
+            "to_ids": mock.ANY,
+            "category": mock.ANY,
+        },
+    ],
+    "description": mock.ANY,
+    "distribution": mock.ANY,
+    "meta-category": mock.ANY,
+    "name": "file",
+    "sharing_group_id": mock.ANY,
+    "template_uuid": mock.ANY,
+    "template_version": mock.ANY,
+    "uuid": mock.ANY,
+}
+EXPECTED_OBJECT_2 = {
     "Attribute": mock.ANY,
     "description": mock.ANY,
     "distribution": mock.ANY,
@@ -27,11 +75,22 @@ EXPECTED_ATTRIBUTE = {
     "template_version": mock.ANY,
     "uuid": mock.ANY,
 }
-EXPECTED_RESULT = {
+EXPECTED_OBJECT_3 = {
+    "Attribute": mock.ANY,
+    "description": mock.ANY,
+    "distribution": mock.ANY,
+    "meta-category": mock.ANY,
+    "name": mock.ANY,
+    "sharing_group_id": mock.ANY,
+    "template_uuid": mock.ANY,
+    "template_version": mock.ANY,
+    "uuid": mock.ANY,
+}
+EXPECTED_RESULT_1 = {
     "Object": [
-        EXPECTED_ATTRIBUTE,
-        EXPECTED_ATTRIBUTE,
-        EXPECTED_ATTRIBUTE,
+        EXPECTED_OBJECT_1,
+        EXPECTED_OBJECT_2,
+        EXPECTED_OBJECT_3,
     ],
     "uuid": mock.ANY,
 }
@@ -47,8 +106,8 @@ class ClientTestCase(unittest.TestCase):
         report2 = json.load(json_file)
 
     @ddt.data(
-        (report1, ANALYSIS_LINK1, EXPECTED_RESULT),
-        (report2, ANALYSIS_LINK2, EXPECTED_RESULT),
+        (report1, ANALYSIS_LINK1, EXPECTED_RESULT_1),
+        # (report2, ANALYSIS_LINK2, EXPECTED_RESULT),
     )
     def test_(self, args):
         """Test ResultParser."""
