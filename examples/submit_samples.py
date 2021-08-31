@@ -104,7 +104,7 @@ def is_likely_binary(file_path: str) -> bool:
     :return: whether the file is likely not a text file
     """
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r") as f:  # pylint:disable=W1514
             for _ in f:
                 break
             return False
@@ -184,7 +184,7 @@ def get_file_hashes(file_path: str, limit: Optional[int] = None) -> List[str]:
     if not os.path.exists(file_path):
         return []
     file_hashes = set([])
-    with open(file_path, "r") as data_file:
+    with open(file_path, "r") as data_file:  # pylint:disable=W1514
         data = data_file.readlines()
     for item in data:
         item = item.strip()
