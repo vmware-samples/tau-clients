@@ -6,7 +6,7 @@
 
 ## Overview
 
-Threat Analysis Unit Clients (shortened as `tau-clients` is a set of clients that can be used
+Threat Analysis Unit Clients (shortened as `tau-clients`) is a set of clients that can be used
 to programmatically interface with various VMware products and/or external services or
 resources, with a focus on threat analysis and intelligence collection.
 

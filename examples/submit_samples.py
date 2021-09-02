@@ -318,14 +318,20 @@ def main():
     task_to_source = {}
     for file_path in file_paths:
         with open(file_path, "rb") as f:
-            ret = analysis_client.submit_file(f.read(), bypass_cache=args.bypass_cache)
-            submissions.append(ret)
-            task_to_source[ret["task_uuid"]] = file_path
+            try:
+                ret = analysis_client.submit_file(f.read(), bypass_cache=args.bypass_cache)
+                submissions.append(ret)
+                task_to_source[ret["task_uuid"]] = file_path
+            except exceptions.ApiError as ae:
+                print(f"Error '{str(ae)}' when submitting file {file_path}")
     for file_hash in file_hashes:
         file_data = download_from_vt(vt_client, file_hash)
-        ret = analysis_client.submit_file(file_data, bypass_cache=args.bypass_cache)
-        submissions.append(ret)
-        task_to_source[ret["task_uuid"]] = file_hash
+        try:
+            ret = analysis_client.submit_file(file_data, bypass_cache=args.bypass_cache)
+            submissions.append(ret)
+            task_to_source[ret["task_uuid"]] = file_hash
+        except exceptions.ApiError as ae:
+            print(f"Error '{str(ae)}' when submitting file {file_hash}")
     if vt_client:
         vt_client.close()
     print(f"All files have been submitted ({len(submissions)} submissions)")
