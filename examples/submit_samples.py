@@ -258,7 +258,7 @@ def main():
         "input_bits",
         metavar="input_bits",
         nargs="+",
-        help="input files, hashes, or list of hashes",
+        help="input file paths, or hashes",
     )
     parser.add_argument(
         "-b",
@@ -277,7 +277,7 @@ def main():
         ],
         dest="input_type",
         default=None,
-        help="input type",
+        help="what the input represents, file hashes or file paths (defaults to auto-detect)",
     )
     args = parser.parse_args()
     conf = configparser.ConfigParser()
@@ -304,6 +304,7 @@ def main():
             if os.path.isfile(input_bit):
                 file_hashes.extend(get_file_hashes(input_bit))
             elif is_hash(input_bit):
+                print(f"Downloading '{input_bit}' from VT")
                 file_hashes.append(input_bit)
         elif input_type == INPUT_TYPE_FILE_SAMPLE:
             file_paths.extend(get_file_paths(input_bit))

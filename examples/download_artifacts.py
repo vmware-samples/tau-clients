@@ -41,6 +41,20 @@ def is_valid_config_file(file_path: str) -> str:
     return file_path
 
 
+def is_valid_output_directory(dir_path: str) -> str:
+    """
+    Validate the path to a directory.
+
+    :param str dir_path: the path
+    :rtype: str
+    :return: the validated dir path
+    :raises ValueError: if the path is not valid
+    """
+    if not os.path.isdir(dir_path):
+        raise ValueError(f"Invalid directory path '{dir_path}'")
+    return dir_path
+
+
 def main():
     """Get public artifacts from file hashes or task uuids."""
     parser = argparse.ArgumentParser()
@@ -57,6 +71,7 @@ def main():
         "--output-directory",
         dest="output_directory",
         default="./",
+        type=is_valid_output_directory,
         help="output directory, defaults to current directory",
     )
     parser.add_argument(
@@ -65,7 +80,7 @@ def main():
         dest="artifact_types",
         choices=METADATA_TYPES + ["all"],
         nargs="+",
-        required=True,
+        default=["all"],
         help="the artifact types, i.e., PCAPs, code hash files, etc.",
     )
     parser.add_argument(
@@ -107,10 +122,10 @@ def main():
     # Decode input type
     input_type = args.input_type
     if not input_type:
-        if all(tau_clients.is_likely_task_uuid(x) for x in args.file_input):
+        if all(tau_clients.is_likely_task_uuid(x) for x in args.file_inputs):
             print("Input will be treated as task uuids (use '-u' to force input type)")
             input_type = INPUT_TYPE_TASK_UUID
-        elif all(not tau_clients.is_likely_task_uuid(x) for x in args.file_input):
+        elif all(not tau_clients.is_likely_task_uuid(x) for x in args.file_inputs):
             print("Input will be treated as file hashes (use '-u' to force input type)")
             input_type = INPUT_TYPE_FILE_HASH
         else:
@@ -168,13 +183,16 @@ def main():
                 f"{artifact_name['artifact_name']}"
             )
             print(f"[{file_hash}] Downloading {artifact_name['artifact_type']} {file_name}")
-            artifact_data = analysis_client.get_artifact(
-                uuid=artifact_name["task_uuid"],
-                report_uuid=artifact_name["report_uuid"],
-                artifact_name=artifact_name["artifact_name"],
-            )
-            with open(os.path.join(args.output_directory, file_name), "wb") as f:
-                f.write(artifact_data.read())
+            try:
+                artifact_data = analysis_client.get_artifact(
+                    uuid=artifact_name["task_uuid"],
+                    report_uuid=artifact_name["report_uuid"],
+                    artifact_name=artifact_name["artifact_name"],
+                )
+                with open(os.path.join(args.output_directory, file_name), "wb") as f:
+                    f.write(artifact_data.read())
+            except tau_clients.exceptions.ApiError as ae:
+                print(f"\tError: {str(ae)}")
 
     return 0
 
