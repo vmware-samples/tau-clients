@@ -3,7 +3,11 @@
 
 
 class InvalidArgument(Exception):
-    """Error raised invalid."""
+    """Error raised by invalid arguments."""
+
+
+class WaitResultTimeout(Exception):
+    """Client exception when a timeout occurs when waiting for task completion."""
 
 
 class CommunicationError(Exception):
@@ -28,3 +32,15 @@ class ApiError(Error):
         else:
             error_code = " ({})".format(self.error_code)
         return "{}{}".format(self.error_msg or "", error_code)
+
+
+class InputTypeException(Exception):
+    """Base exception raised when dealing with input types."""
+
+
+class DecodeError(InputTypeException):
+    """Exception raised when decoding the input."""
+
+
+class FileParseError(InputTypeException):
+    """Exception raised when parsing a file."""

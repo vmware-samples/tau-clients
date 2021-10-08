@@ -8,10 +8,12 @@ import datetime
 import hashlib
 import io
 import logging
+import time
 import weakref
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Generator
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -1058,6 +1060,73 @@ class AnalysisClient(AbstractClient):
         if not include_report:
             ret_data.pop("report", None)
         return ret_data
+
+    def yield_completed_tasks(
+        self,
+        submissions: List[Dict],
+        start_timestamp: datetime.datetime,
+        wait_completion_interval_seconds: float = 15.0,
+        wait_completion_max_seconds: Optional[float] = None,
+        wait_max_num_tries: int = 5,
+    ) -> Generator[Dict, None, None]:
+        """
+        Returns a generator, which gives completed tasks as soon as they are ready.
+
+        :param list[dict] submissions: dictionary of submissions as returned by 'submit_*'
+        :param datetime.datetime start_timestamp: timestamp before the first submission happened
+        :param float wait_completion_max_seconds: do not wait for longer than this
+        :param float wait_completion_interval_seconds: how long to wait between polls
+        :param int wait_max_num_tries: maximum number of attempts
+        :rtype: generator[dict]
+        :return: generator that yields completed tasks
+        :raises WaitResultTimeout: when waiting for results timed out
+        """
+
+        def _get_timeout_or_raise() -> float:
+            end_completion_time = (
+                time.time() + wait_completion_max_seconds
+                if wait_completion_max_seconds is not None
+                else None
+            )
+            sleep_timeout = wait_completion_interval_seconds
+            if end_completion_time is not None:
+                now = time.time()
+                if now >= end_completion_time:
+                    raise exceptions.WaitResultTimeout()
+                if now + sleep_timeout > end_completion_time:
+                    sleep_timeout = end_completion_time - now
+            return sleep_timeout
+
+        attempts = 0
+        pending_submissions = {}
+        for submission in submissions:
+            if "score" in submission:
+                yield submission
+            else:
+                pending_submissions[submission["task_uuid"]] = submission
+        while pending_submissions:
+            try:
+                ret = self.get_completed(after=start_timestamp, include_score=True)
+            except exceptions.CommunicationError:
+                attempts += 1
+                if attempts > wait_max_num_tries:
+                    raise
+            else:
+                attempts = 0
+                start_timestamp = ret["before"]
+                for task_uuid, score in ret["tasks"].items():
+                    try:
+                        submission = pending_submissions[task_uuid]
+                    except KeyError:
+                        continue
+                    submission["score"] = score
+                    del pending_submissions[task_uuid]
+                    yield submission
+                if ret["more_results_available"]:
+                    continue
+                if not pending_submissions:
+                    break
+            time.sleep(_get_timeout_or_raise())
 
 
 class MultiClientMixin:

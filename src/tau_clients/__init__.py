@@ -4,6 +4,8 @@ import collections
 import datetime
 import functools
 import io
+import os
+import random
 import re
 from typing import Any
 from typing import Callable
@@ -51,6 +53,8 @@ METADATA_TYPE_YARA_STRINGS = "codehash_yara_strings"
 METADATA_TYPE_CODEHASH = "codehash"
 METADATA_TYPE_SCREENSHOT = "screenshot"
 METADATA_TYPE_SFC = "sfc2_feature_reuse_report"
+METADATA_TYPE_LLBIST_TRACE = "llbist_analyzer_trace"
+METADATA_TYPE_STRINGS = "extracted_strings_report"
 
 # Report types
 REPORT_TYPE_SANDBOX = "ll-int-win"
@@ -59,6 +63,20 @@ REPORT_TYPE_SANDBOX = "ll-int-win"
 DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
 DATETIME_MSEC_FMT = DATETIME_FMT + ".%f"
 DATE_FMT = "%Y-%m-%d"
+
+
+def is_valid_config_file(file_path: str) -> str:
+    """
+    Validate the path to the configuration file.
+
+    :param str file_path: the path to the config file
+    :rtype: str
+    :return: the validated file path
+    :raises ValueError: if the path is not valid
+    """
+    if not os.path.isfile(file_path):
+        raise ValueError(f"Invalid file path '{file_path}' for configuration file")
+    return file_path
 
 
 def is_likely_task_uuid(hash_like: str) -> bool:
@@ -200,6 +218,42 @@ def merge_dicts(
             values_with_common_key,
         )
     return merged_dict
+
+
+def get_file_paths(
+    dir_name: str,
+    extension: Optional[str] = None,
+    limit: Optional[int] = None,
+    shuffle: bool = False,
+) -> List[str]:
+    """
+    Return all absolute paths inside a directory
+
+    :param str dir_name: the path to the directory
+    :param str|None extension: optional extension filter
+    :param str|None limit: optional limit
+    :param bool shuffle: whether to shuffle the output
+    :rtype: list[str]
+    :return: list of file paths
+    """
+    if not os.path.exists(dir_name):
+        return []
+    if os.path.isfile(dir_name):
+        file_paths = [os.path.abspath(dir_name)]
+    else:
+        file_paths = set(
+            [
+                os.path.abspath(os.path.join(dp, f))
+                for dp, _, filenames in os.walk(dir_name)
+                for f in filenames
+                if f.endswith(extension or "")
+            ]
+        )
+    file_paths = sorted(file_paths)[:limit]
+    if shuffle:
+        # Shuffle deterministically
+        random.Random(4).shuffle(file_paths)
+    return file_paths
 
 
 class NamedBytesIO(io.BytesIO):

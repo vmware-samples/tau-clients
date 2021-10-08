@@ -9,13 +9,10 @@ import os
 import sys
 
 import tau_clients
+from tau_clients import decoders
 from tau_clients import exceptions
 from tau_clients import nsx_defender
 
-
-INPUT_TYPE_FILE_HASH = "file-hash"
-
-INPUT_TYPE_TASK_UUID = "task-uuid"
 
 METADATA_TYPES = [
     tau_clients.METADATA_TYPE_PCAP,
@@ -25,20 +22,6 @@ METADATA_TYPES = [
     tau_clients.METADATA_TYPE_SCREENSHOT,
     tau_clients.METADATA_TYPE_SFC,
 ]
-
-
-def is_valid_config_file(file_path: str) -> str:
-    """
-    Validate the path to the configuration file.
-
-    :param str file_path: the path to the config file
-    :rtype: str
-    :return: the validated file path
-    :raises ValueError: if the path is not valid
-    """
-    if not os.path.isfile(file_path):
-        raise ValueError(f"Invalid file path '{file_path}' for configuration file")
-    return file_path
 
 
 def is_valid_output_directory(dir_path: str) -> str:
@@ -63,7 +46,7 @@ def main():
         "--config-file",
         dest="config_file",
         default="./data/tau_clients.ini",
-        type=is_valid_config_file,
+        type=tau_clients.is_valid_config_file,
         help="read config from here",
     )
     parser.add_argument(
@@ -84,17 +67,6 @@ def main():
         help="the artifact types, i.e., PCAPs, code hash files, etc.",
     )
     parser.add_argument(
-        "-u",
-        "--input-type",
-        dest="input_type",
-        choices=[
-            INPUT_TYPE_TASK_UUID,
-            INPUT_TYPE_FILE_HASH,
-        ],
-        default=None,
-        help="what the input represents, file hashes or task uuids (defaults to auto-detect)",
-    )
-    parser.add_argument(
         "-d",
         "--disable-sandbox-filter",
         dest="disable_sandbox_filter",
@@ -102,11 +74,13 @@ def main():
         default=False,
         help="whether to search metadata in all reports rather than only sandbox (slower)",
     )
-    parser.add_argument(
-        "file_inputs",
-        metavar="file_inputs",
-        nargs="+",
-        help="file hashes or task uuids",
+    decoders.InputTypeDecoder.add_arguments_to_parser(
+        parser=parser,
+        choices=[
+            decoders.InputType.TASK_UUID,
+            decoders.InputType.FILE_HASH,
+            decoders.InputType.FILE,
+        ],
     )
     args = parser.parse_args()
     conf = configparser.ConfigParser()
@@ -120,34 +94,29 @@ def main():
     report_types = [] if args.disable_sandbox_filter else [tau_clients.REPORT_TYPE_SANDBOX]
 
     # Decode input type
-    input_type = args.input_type
-    if not input_type:
-        if all(tau_clients.is_likely_task_uuid(x) for x in args.file_inputs):
-            print("Input will be treated as task uuids (use '-u' to force input type)")
-            input_type = INPUT_TYPE_TASK_UUID
-        elif all(not tau_clients.is_likely_task_uuid(x) for x in args.file_inputs):
-            print("Input will be treated as file hashes (use '-u' to force input type)")
-            input_type = INPUT_TYPE_FILE_HASH
-        else:
-            raise ValueError("Mixed input is not supported (use '-u' to force input type)")
+    file_inputs, input_type = decoders.InputTypeDecoder().decode(
+        arguments=args.input_bits,
+        input_type=decoders.InputType(args.input_type),
+        inspect_content=True,
+    )
     print(
         f"Downloading '{','.join(artifact_types)}' (from '{','.join(report_types) or 'all'}') "
-        f"for {len(args.file_inputs)} inputs of type '{input_type}'"
+        f"for {len(file_inputs)} inputs of type '{input_type}'"
     )
 
     # Get mapping from hash -> task uuids
-    if input_type == INPUT_TYPE_TASK_UUID:
+    if input_type is decoders.InputType.TASK_UUID:
         hash_to_tasks = collections.defaultdict(set)
-        for uuid in args.file_inputs:
+        for uuid in file_inputs:
             try:
                 ret = analysis_client.get_task_metadata(uuid)
                 hash_to_tasks[ret["file_sha256"]].add(uuid)
                 print(f"Task {uuid} found")
             except exceptions.ApiError:
                 print(f"Task {uuid} NOT found")
-    else:
+    elif input_type is decoders.InputType.FILE_HASH:
         hash_to_tasks = collections.defaultdict(set)
-        for file_hash in args.file_inputs:
+        for file_hash in file_inputs:
             ret = analysis_client.query_file_hash(file_hash)
             for task in ret.get("tasks", []):
                 hash_to_tasks[file_hash].add(task["task_uuid"])
@@ -155,6 +124,8 @@ def main():
                 print(f"File {file_hash} found")
             else:
                 print(f"File {file_hash} NOT found")
+    else:
+        raise ValueError("Unknown input type")
     print(
         f"Validated {len(hash_to_tasks)} file hashes "
         f"for {len(list(itertools.chain(*hash_to_tasks.values())))} task uuids"
@@ -194,6 +165,7 @@ def main():
             except tau_clients.exceptions.ApiError as ae:
                 print(f"\tError: {str(ae)}")
 
+    print("Done")
     return 0
 
 
