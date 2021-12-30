@@ -419,8 +419,8 @@ class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
         super(MultiDataCenterAnalysisClientTestCase, self).setUp()
         self.conf = configparser.ConfigParser()
         self.conf.add_section("analysis")
-        self.conf.set("analysis", "api_token", "dsa")
-        self.conf.set("analysis", "key", "asd")
+        self.conf.set("analysis", "api_token", ANALYSIS_AUTH_DATA["api_token"])
+        self.conf.set("analysis", "key", ANALYSIS_AUTH_DATA["key"])
 
     @mock.patch("requests.sessions.Session")
     @mock.patch("requests.sessions")
@@ -429,10 +429,10 @@ class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
         expected_result = {"progress": 200, "completed": 2}
         result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": result}),
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": 1, "data": "true"}),
+            mock_response(200, {"success": 1, "data": result}),
+            mock_response(200, {"success": 1, "data": "true"}),
+            mock_response(200, {"success": 1, "data": result}),
         ]
         requests_mock.session.return_value = session_mock
         # Test the code
@@ -504,8 +504,8 @@ class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
         expected_result = {"progress": 100, "completed": 1}
         result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": 1, "data": "true"}),
+            mock_response(200, {"success": 1, "data": result}),
         ]
         requests_mock.session.return_value = session_mock
         # Test the code
@@ -554,8 +554,8 @@ class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
         expected_result = {"progress": 100, "completed": 1}
         result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": 1, "data": "true"}),
+            mock_response(200, {"success": 1, "data": result}),
         ]
         requests_mock.session.return_value = session_mock
         # Test the code
@@ -602,8 +602,8 @@ class MultiDataCenterAnalysisClientTestCase(unittest.TestCase):
         expected_result = {"progress": 100, "completed": 1}
         result = {"progress": 100, "completed": 1}
         session_mock.request.side_effect = [
-            mock_response(200, {"success": "1", "data": "true"}),
-            mock_response(200, {"success": "1", "data": result}),
+            mock_response(200, {"success": 1, "data": "true"}),
+            mock_response(200, {"success": 1, "data": result}),
         ]
         requests_mock.session.return_value = session_mock
         # Test the code

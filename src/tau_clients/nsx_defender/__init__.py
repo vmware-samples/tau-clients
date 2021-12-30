@@ -93,7 +93,7 @@ class AbstractClient(abc.ABC):
         verify_ssl = conf.getboolean(section_name, "verify_ssl", fallback=True)
         return {
             data_center: cls(
-                api_url=cls.HOSTED_URLS[data_center],
+                api_url=data_center_url,
                 login_params=login_params,
                 timeout=timeout,
                 verify_ssl=verify_ssl,
@@ -366,7 +366,7 @@ class AbstractClient(abc.ABC):
         params: Optional[Dict[str, str]] = None,
         fmt: Optional[str] = "json",
         raw: bool = False,
-    ) -> Union[dict, bytes, tau_clients.NamedBytesIO]:
+    ) -> Union[list, dict, bytes, tau_clients.NamedBytesIO]:
         """Utility method to issue a GET request (see '_request' for documentation)."""
         return self._request(
             method="GET",
@@ -381,17 +381,104 @@ class AbstractClient(abc.ABC):
 class PortalClient(AbstractClient):
     """Simple client to query the user portal API (PAPI)."""
 
-    MODULES = ("analysis", "knowledgebase", "login")
+    MODULES = (
+        "analysis",
+        "knowledgebase",
+        "login",
+        "net",
+    )
 
     FORMATS = ("json",)
 
-    HOSTED_URLS = tau_clients.NSX_DEFENDER_PORTAL_URLS
+    HOSTED_URLS = {k: f"{v}/papi" for k, v in tau_clients.NSX_DEFENDER_PORTAL_URLS.items()}
 
     def _login(self) -> None:
         """Implement interface (portal client relies on 'username' and 'password')."""
         if self._session is None:
             self._session = requests.sessions.session()
         self.post("login", function=None, data=self._login_params)
+
+    def get_event(
+        self,
+        event_id: str,
+        obfuscated_key_id: str,
+        obfuscated_subkey_id: str,
+    ) -> Optional[Dict]:
+        """
+        Get event information.
+
+        :param str event_id: the id of the event
+        :param str obfuscated_key_id: the obfuscated key id
+        :param str obfuscated_subkey_id: the obfuscated sensor key
+        :rtype: dict|None
+        :return: the information, or None if no event is found
+        """
+        params = tau_clients.purge_none(
+            {
+                "event_id": event_id,
+                "key_id": obfuscated_key_id,
+                "subkey_id": obfuscated_subkey_id,
+            }
+        )
+        try:
+            ret = self.get("net", "event/get", params=params)
+            return ret[0]
+        except IndexError:
+            return None
+
+    def get_event_info(
+        self,
+        event_id: str,
+        event_time: str,
+        obfuscated_key_id: str,
+        obfuscated_subkey_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get PCAP info about an event.
+
+        :param str event_id: the id of the event
+        :param str event_time: when the even took place
+        :param str obfuscated_key_id: the obfuscated key id
+        :param str obfuscated_subkey_id: the obfuscated sensor key
+        :rtype: list[dict[str, any]]
+        :return: get PCAP event information
+        """
+        params = tau_clients.purge_none(
+            {
+                "event_id": event_id,
+                "event_time": event_time,
+                "key_id": obfuscated_key_id,
+                "subkey_id": obfuscated_subkey_id,
+            }
+        )
+        return self.get("net", "pcap/event_info", params=params)
+
+    def get_pcap(
+        self,
+        pcap_id: str,
+        event_time: str,
+        obfuscated_key_id: str,
+        obfuscated_subkey_id: str,
+    ) -> "tau_clients.NamedBytesIO":
+        """
+        Get PCAP.
+
+        :param str pcap_id: the PCAP id
+        :param str event_time: when the even took place
+        :param str obfuscated_key_id: the obfuscated key id
+        :param str obfuscated_subkey_id: the obfuscated sensor key
+        :rtype: NamedBytesIO
+        :return: the PCAP data
+        """
+        params = tau_clients.purge_none(
+            {
+                "pcap_id": pcap_id,
+                "event_time": event_time,
+                "key_id": obfuscated_key_id,
+                "subkey_id": obfuscated_subkey_id,
+            }
+        )
+        return self.get("net", "pcap/get_pcap", params=params, raw=True, fmt=None)
 
     def get_tasks_from_knowledgebase(self, query_string: str, **kwargs) -> List[Dict[str, Any]]:
         """
@@ -468,7 +555,7 @@ class PortalClient(AbstractClient):
         bypass_cache: bool = False,
     ) -> Dict[str, Any]:
         """
-        Upload an URL to be analyzed.
+        Upload a URL to be analyzed.
 
         :param str url: the url to analyze
         :param str|None referer: the referer

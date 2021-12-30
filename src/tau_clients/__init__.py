@@ -45,6 +45,16 @@ NSX_DEFENDER_PORTAL_URLS = {
 }
 NSX_DEFENDER_PORTAL_LB_URL = "https://user.lastline.com"
 
+# Sometimes we want to know the data-center
+URL_TO_DATA_CENTER = {
+    NSX_DEFENDER_ANALYSIS_URLS[NSX_DEFENDER_DC_WESTUS]: NSX_DEFENDER_DC_WESTUS,
+    NSX_DEFENDER_ANALYSIS_URLS[NSX_DEFENDER_DC_NLEMEA]: NSX_DEFENDER_DC_NLEMEA,
+    NSX_DEFENDER_ANALYSIS_LB_URL: NSX_DEFENDER_DC_WESTUS,
+    NSX_DEFENDER_PORTAL_URLS[NSX_DEFENDER_DC_WESTUS]: NSX_DEFENDER_DC_WESTUS,
+    NSX_DEFENDER_PORTAL_URLS[NSX_DEFENDER_DC_NLEMEA]: NSX_DEFENDER_DC_NLEMEA,
+    NSX_DEFENDER_PORTAL_LB_URL: NSX_DEFENDER_DC_WESTUS,
+}
+
 
 # Metadata types that can be returned from 'AnalysisClient.get_result'
 METADATA_TYPE_PCAP = "traffic_capture"
@@ -63,6 +73,19 @@ REPORT_TYPE_SANDBOX = "ll-int-win"
 DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
 DATETIME_MSEC_FMT = DATETIME_FMT + ".%f"
 DATE_FMT = "%Y-%m-%d"
+
+
+# Structures
+EventDescriptor = collections.namedtuple(
+    "EventDescriptor",
+    [
+        "event_id",
+        "event_time",
+        "obfuscated_key_id",
+        "obfuscated_subkey_id",
+        "data_center",
+    ],
+)
 
 
 def is_valid_config_file(file_path: str) -> str:
@@ -254,6 +277,36 @@ def get_file_paths(
         # Shuffle deterministically
         random.Random(4).shuffle(file_paths)
     return file_paths
+
+
+def parse_portal_link(portal_link: str) -> Optional["EventDescriptor"]:
+    """
+    Parse a portal link.
+
+    :param str portal_link: portal link pointing to the network event
+    :rtype: EventDescriptor|None
+    :return: the EventDescriptor if the parsing succeeded
+    """
+    url_parsed = parse.urlsplit(portal_link, allow_fragments=False)
+
+    try:
+        url_query_string = parse.parse_qs(url_parsed.query)
+        event_time = url_query_string["event_time"][0]
+    except (ValueError, KeyError, IndexError):
+        event_time = None
+
+    try:
+        url_scheme_netloc = parse.urlunsplit((url_parsed.scheme, url_parsed.netloc, "", "", ""))
+        matches = re.search(".*event/(.*)/(.*)/(.*)", url_parsed.path)
+        return EventDescriptor(
+            obfuscated_key_id=matches.group(1),
+            obfuscated_subkey_id=matches.group(2),
+            event_id=matches.group(3),
+            event_time=event_time,
+            data_center=URL_TO_DATA_CENTER[url_scheme_netloc],
+        )
+    except (AttributeError, KeyError):
+        return None
 
 
 class NamedBytesIO(io.BytesIO):

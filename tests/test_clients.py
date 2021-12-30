@@ -38,6 +38,99 @@ class ClientTestCase(unittest.TestCase):
         result = tau_clients.merge_dicts([d1, d2])
         self.assertEqual(result, expected_result)
 
+    @ddt.data(
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/983923901/"
+            "1264665?customer=partner-demo-account@lastline.com",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time=None,
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.emea.lastline.com/portal#/network/event/3086636740/983923901/"
+            "1264665?customer=partner-demo-account@lastline.com",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time=None,
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_NLEMEA,
+            ),
+        ),
+        (
+            "https://user.us.lastline.com/portal#/network/event/3086636740/983923901/"
+            "1264665?customer=partner-demo-account@lastline.com",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time=None,
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/983923901/1264665",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time=None,
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/983923901/1264665?",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time=None,
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/983923901/"
+            "1264665?event_time=2021-12-30",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time="2021-12-30",
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/983923901/"
+            "1264665?customer=partner-demo-account@lastline.com&event_time=2021-12-30",
+            tau_clients.EventDescriptor(
+                event_id="1264665",
+                event_time="2021-12-30",
+                obfuscated_key_id="3086636740",
+                obfuscated_subkey_id="983923901",
+                data_center=tau_clients.NSX_DEFENDER_DC_WESTUS,
+            ),
+        ),
+        (
+            "https://user.last.com/portal#/network/event/3086636740/983923901/"
+            "1264665?event_time=2021-12-30",
+            None,
+        ),
+        (
+            "https://user.lastline.com/portal#/network/event/3086636740/"
+            "1264665?event_time=2021-12-30",
+            None,
+        ),
+    )
+    def test_parse_portal_link(self, args):
+        """Test parsing portal links."""
+        portal_link, expected_event_descriptor = args
+        event_descriptor = tau_clients.parse_portal_link(portal_link)
+        self.assertEqual(event_descriptor, expected_event_descriptor)
+
 
 if __name__ == "__main__":
     unittest.main()
