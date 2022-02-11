@@ -23,11 +23,6 @@ class InputType(enum.Enum):
     FILE_HASH = "file-hash"
     TASK_UUID = "task-uuid"
 
-    @classmethod
-    def _missing_(cls, value: Optional[str]) -> None:
-        """Return None if the value is missing."""
-        return None
-
 
 class InputTypeDecoder:
     """Class to decode the input provided by the user."""
@@ -53,12 +48,20 @@ class InputTypeDecoder:
         :param ArgumentParser parser: the parser
         :param listr[InputType] choices: the valid option
         """
+
+        def _input_type_val(input_type):
+            try:
+                return InputType(input_type)
+            except ValueError:
+                return None
+
         choices_vals = [getattr(x, "value") for x in choices]
         choices_str = ",".join(choices_vals)
         parser.add_argument(
             "-u",
             "--input-type",
             dest="input_type",
+            type=_input_type_val,
             choices=choices_vals,
             default=None,
             help=f"what the input represents ({choices_str}) defaults to auto-detect",

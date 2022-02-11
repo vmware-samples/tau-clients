@@ -4,6 +4,7 @@
 import argparse
 import collections
 import configparser
+import datetime
 import itertools
 import os
 import sys
@@ -14,6 +15,8 @@ from tau_clients import exceptions
 from tau_clients import nsx_defender
 
 
+UTC_NOW = datetime.datetime.utcnow()
+
 METADATA_TYPES = [
     tau_clients.METADATA_TYPE_PCAP,
     tau_clients.METADATA_TYPE_PROCESS_SNAPSHOT,
@@ -21,6 +24,8 @@ METADATA_TYPES = [
     tau_clients.METADATA_TYPE_CODEHASH,
     tau_clients.METADATA_TYPE_SCREENSHOT,
     tau_clients.METADATA_TYPE_SFC,
+    tau_clients.METADATA_TYPE_FILE,
+    tau_clients.METADATA_TYPE_EXECUTED_SCRIPT,
 ]
 
 
@@ -96,7 +101,7 @@ def main():
     # Decode input type
     file_inputs, input_type = decoders.InputTypeDecoder().decode(
         arguments=args.input_bits,
-        input_type=decoders.InputType(args.input_type),
+        input_type=args.input_type,
         inspect_content=True,
     )
     print(
@@ -142,9 +147,24 @@ def main():
             )
             for artifact_type in artifact_types:
                 nb_count = len([x for x in results if x["artifact_type"] == artifact_type])
-                print(f"[{file_hash}][{task_uuid}] Found {nb_count} {artifact_type}(s)")
+                nb_count_expired = len(
+                    [
+                        x
+                        for x in results
+                        if (
+                            x["artifact_type"] == artifact_type
+                            and x["delete_date"]
+                            and x["delete_date"] <= UTC_NOW
+                        )
+                    ]
+                )
+                print(
+                    f"[{file_hash}][{task_uuid}] Found {nb_count} "
+                    f"({nb_count_expired} expired) {artifact_type}(s)"
+                )
             for result in results:
-                hash_to_artifact_names[file_hash].append(result)
+                if not result["delete_date"] or result["delete_date"] > UTC_NOW:
+                    hash_to_artifact_names[file_hash].append(result)
 
     # Download all artifacts
     for file_hash, artifact_names in hash_to_artifact_names.items():

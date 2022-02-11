@@ -655,6 +655,8 @@ class AnalysisClient(AbstractClient):
 
     HOSTED_URLS = tau_clients.NSX_DEFENDER_ANALYSIS_URLS
 
+    DELETE_DATE_FMT = "%Y-%m-%d %H:%M:%S.%f"
+
     def _login(self) -> None:
         """Implement interface (analysis client relies on 'key' and 'api_token')."""
         if self._session is None:
@@ -984,6 +986,7 @@ class AnalysisClient(AbstractClient):
                     "report_uuid": "4ffa644851ebe118wu1pbwlt3C44cwAYRtfdXY5L3gRhHJ_QANAyuQ",
                     "artifact_name": "process_snapshots_2",
                     "artifact_type": "process_snapshot",
+                    "delete_date": optional datetime object,
                 },
                 ...
             ]
@@ -998,13 +1001,21 @@ class AnalysisClient(AbstractClient):
             if not report_types or any(x in report["report_versions"] for x in report_types):
                 temp = self.get_result(uuid, report_uuid=report["report_uuid"])
                 for item in temp.get("report", {}).get("analysis_metadata", []):
-                    if not metadata_types or item["metadata_type"] in metadata_types:
+                    if item["metadata_type"] in metadata_types or not metadata_types:
+                        try:
+                            delete_date = datetime.datetime.strptime(
+                                item.get("delete_date") or item.get("retention_date"),
+                                self.DELETE_DATE_FMT,
+                            )
+                        except TypeError:
+                            delete_date = None
                         ret.append(
                             {
                                 "task_uuid": uuid,
                                 "report_uuid": report["report_uuid"],
                                 "artifact_name": item["name"],
                                 "artifact_type": item["metadata_type"],
+                                "delete_date": delete_date,
                             }
                         )
         return ret

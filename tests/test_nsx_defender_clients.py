@@ -265,6 +265,7 @@ class AnalysisClientTestCase(unittest.TestCase):
                 "report_uuid": "REPORT_UUID",
                 "artifact_name": "NAME",
                 "artifact_type": tau_clients.METADATA_TYPE_PCAP,
+                "delete_date": None,
             }
         ]
         expected_result_1 = {

@@ -65,6 +65,8 @@ METADATA_TYPE_SCREENSHOT = "screenshot"
 METADATA_TYPE_SFC = "sfc2_feature_reuse_report"
 METADATA_TYPE_LLBIST_TRACE = "llbist_analyzer_trace"
 METADATA_TYPE_STRINGS = "extracted_strings_report"
+METADATA_TYPE_FILE = "generated_file"
+METADATA_TYPE_EXECUTED_SCRIPT = "executed_script_content"
 
 # Report types
 REPORT_TYPE_SANDBOX = "ll-int-win"
