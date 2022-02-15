@@ -65,7 +65,7 @@ class DecoderTestCase(unittest.TestCase):
         arguments, expected_type = args
         decoder = decoders.InputTypeDecoder()
         input_bits, input_type = decoder.decode(
-            input_type=None,
+            input_type=decoders.InputType.NULL,
             arguments=arguments,
             inspect_content=False,
         )
@@ -89,7 +89,7 @@ class DecoderTestCase(unittest.TestCase):
         arguments, expected_type = args
         decoder = decoders.InputTypeDecoder()
         input_bits, input_type = decoder.decode(
-            input_type=None,
+            input_type=decoders.InputType.NULL,
             arguments=arguments,
             inspect_content=True,
         )
@@ -114,7 +114,7 @@ class DecoderTestCase(unittest.TestCase):
             )
             with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not choose"):
                 _, _ = decoder.decode(
-                    input_type=None,
+                    input_type=decoders.InputType.NULL,
                     arguments=["path/to/open", TEST_SHA1_1],
                     inspect_content=False,
                 )
@@ -178,7 +178,7 @@ class DecoderTestCase(unittest.TestCase):
 
                 mock_file_2.side_effect = side_effect
                 input_bits, input_type = decoder.decode(
-                    input_type=None,
+                    input_type=decoders.InputType.NULL,
                     arguments=["path/to/open"],
                     inspect_content=True,
                 )
@@ -203,7 +203,7 @@ class DecoderTestCase(unittest.TestCase):
             self.assertEqual(input_bits, ["path/to/open"])
             # try again with no hint and we should see no difference
             input_bits, input_type = decoder.decode(
-                input_type=None,
+                input_type=decoders.InputType.NULL,
                 arguments=["path/to/open"],
                 inspect_content=False,
             )
@@ -237,7 +237,7 @@ class DecoderTestCase(unittest.TestCase):
                     self.assertEqual(input_bits, ["path/to/list/a", "path/to/list/b"])
                     # try again with no hint but we should see no difference
                     input_bits, input_type = decoder.decode(
-                        input_type=None,
+                        input_type=decoders.InputType.NULL,
                         arguments=["path/to/list"],
                         inspect_content=False,
                     )
@@ -266,7 +266,7 @@ class DecoderTestCase(unittest.TestCase):
                 # try again with no hint but we should see no difference
                 with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
                     _, _ = decoder.decode(
-                        input_type=None,
+                        input_type=decoders.InputType.NULL,
                         arguments=["path/to/list"],
                         inspect_content=False,
                     )
@@ -317,7 +317,7 @@ class DecoderTestCase(unittest.TestCase):
             # try again with no hint but we should see no difference
             with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
                 _, _ = decoder.decode(
-                    input_type=None,
+                    input_type=decoders.InputType.NULL,
                     arguments=["path/to/open"],
                     inspect_content=True,
                 )
@@ -339,7 +339,7 @@ class DecoderTestCase(unittest.TestCase):
             # try again with no hint but we should see no difference
             with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
                 _, _ = decoder.decode(
-                    input_type=None,
+                    input_type=decoders.InputType.NULL,
                     arguments=["path/to/open"],
                     inspect_content=False,
                 )

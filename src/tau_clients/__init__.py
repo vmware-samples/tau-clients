@@ -76,6 +76,8 @@ DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
 DATETIME_MSEC_FMT = DATETIME_FMT + ".%f"
 DATE_FMT = "%Y-%m-%d"
 
+# Hexadecimal string RE
+HEX_RE = re.compile(r"^[a-fA-F0-9]*$")
 
 # Structures
 EventDescriptor = collections.namedtuple(
@@ -141,11 +143,11 @@ def purge_none(d: Dict[Any, Any]) -> Dict[Any, Any]:
 def get_hash_type(hash_value: str) -> Optional[str]:
     """Get the hash type."""
     if len(hash_value) == 32:
-        return "md5"
+        return "md5" if HEX_RE.match(hash_value) else None
     elif len(hash_value) == 40:
-        return "sha1"
+        return "sha1" if HEX_RE.match(hash_value) else None
     elif len(hash_value) == 64:
-        return "sha256"
+        return "sha256" if HEX_RE.match(hash_value) else None
     else:
         return None
 

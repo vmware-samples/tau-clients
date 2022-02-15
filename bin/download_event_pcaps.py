@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2
 import argparse

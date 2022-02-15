@@ -3,6 +3,7 @@
 import argparse
 import csv
 import enum
+import functools
 import itertools
 import json
 import os
@@ -22,6 +23,16 @@ class InputType(enum.Enum):
     FILE = "file"
     FILE_HASH = "file-hash"
     TASK_UUID = "task-uuid"
+    NULL = "null"
+
+    @classmethod
+    def _missing_(cls, value: Optional[str]) -> "InputType":
+        """Return a sentinel value if the value is missing (py39 does not support 'None')."""
+        return InputType.NULL
+
+    def __bool__(self):
+        """Treat sentinel values as actual 'None'."""
+        return self != InputType.NULL
 
 
 class InputTypeDecoder:
@@ -48,22 +59,14 @@ class InputTypeDecoder:
         :param ArgumentParser parser: the parser
         :param listr[InputType] choices: the valid option
         """
-
-        def _input_type_val(input_type):
-            try:
-                return InputType(input_type)
-            except ValueError:
-                return None
-
-        choices_vals = [getattr(x, "value") for x in choices]
+        choices_vals = [getattr(x, "value") for x in choices if x]
         choices_str = ",".join(choices_vals)
         parser.add_argument(
             "-u",
             "--input-type",
             dest="input_type",
-            type=_input_type_val,
             choices=choices_vals,
-            default=None,
+            default=InputType.NULL,
             help=f"what the input represents ({choices_str}) defaults to auto-detect",
         )
         parser.add_argument(
@@ -88,11 +91,15 @@ class InputTypeDecoder:
         return None
 
     @staticmethod
-    def _parse_csv_file(file_path: str) -> List[str]:
+    def _parse_csv_file(file_path: str, scan_keys: bool = False) -> List[str]:
         """
         Parse a CSV file and return values from field names in 'SUPPORTED_FIELD_NAMES'.
 
+        Note: if 'scan_keys' is set then this method will cannibalize the plain text parser,
+            which might what we want or NOT, so use it as a last resort.
+
         :param str file_path: the file path
+        :param bool scan_keys: whether to scan also keys as last resort
         :rtype: list[str]
         :return: a list of hash-like values
         :raises FileParseError: for any error reading the file
@@ -103,9 +110,18 @@ class InputTypeDecoder:
                 reader = csv.DictReader(csv_file)
                 field_name = InputTypeDecoder._find_field_name(reader.fieldnames)
                 for row in reader:
-                    file_hash = row.get(field_name)
-                    if file_hash:
-                        hashes.add(file_hash)
+                    if scan_keys:
+                        for raw_value in row.values():
+                            try:
+                                InputTypeDecoder._decode_hash(raw_value)
+                            except exceptions.DecodeError:
+                                pass
+                            else:
+                                hashes.add(raw_value)
+                    else:
+                        file_hash = row.get(field_name)
+                        if file_hash:
+                            hashes.add(file_hash)
         except (IOError, csv.Error) as err:
             raise exceptions.FileParseError from err
         return sorted(hashes)
@@ -170,6 +186,8 @@ class InputTypeDecoder:
                 pass
             else:
                 hashes.add(line)
+        if not hashes:
+            raise exceptions.FileParseError("Empty data")
         return sorted(hashes)
 
     @staticmethod
@@ -188,7 +206,7 @@ class InputTypeDecoder:
     @staticmethod
     def _decode_hash(argument: str) -> InputType:
         """
-        Decode the input type of a hash-like string.
+        Decode the input of a hash-like string.
 
         :param str argument: the input
         :rtype: InputType
@@ -206,7 +224,7 @@ class InputTypeDecoder:
     @staticmethod
     def _decode_string(argument: str) -> InputType:
         """
-        Decode the input type of a string, possible a file path.
+        Decode the input of a string, possible a file path.
 
         :param str argument: the input
         :rtype: InputType
@@ -222,7 +240,7 @@ class InputTypeDecoder:
 
     def _decode_input_type(self, arguments: List[str]) -> InputType:
         """
-        Decode the input type of a list of strings.
+        Decode the input of a list of strings.
 
         :param list[str] arguments: the input list
         :rtype: InputType
@@ -246,14 +264,14 @@ class InputTypeDecoder:
     def decode(
         self,
         arguments: List[str],
-        input_type: InputType = None,
+        input_type: InputType = InputType.NULL,
         inspect_content: bool = True,
     ) -> Tuple[List[str], InputType]:
         """
-        Decode the input received by the user and return a list of decoded inputs and the type.
+        Decode the input received by the user and return a list of decoded inputs and types.
 
         :param list[str] arguments: the input list
-        :param InputType|None input_type: optional hint
+        :param InputType input_type: hint about the input type
         :param bool inspect_content: whether the input type should be content-inspected
         :rtype: tuple[list[str], InputType]
         :return: a tuple with the parsed input type and a list of decoded input bits
@@ -279,13 +297,14 @@ class InputTypeDecoder:
             self._parse_json_file,
             self._parse_csv_file,
             self._parse_text_file,
+            functools.partial(self._parse_csv_file, scan_keys=True),
         ]:
             try:
                 new_arguments = []
                 for argument in arguments:
                     new_arguments.extend(parse_function(argument))
                 if new_arguments:
-                    return self.decode(new_arguments, input_type=None)
+                    return self.decode(new_arguments, input_type=InputType.NULL)
             except exceptions.FileParseError:
                 continue
         raise exceptions.InputTypeException("Could not decode any data")

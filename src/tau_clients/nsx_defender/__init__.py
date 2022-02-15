@@ -8,6 +8,7 @@ import datetime
 import hashlib
 import io
 import logging
+import threading
 import time
 import weakref
 from typing import Any
@@ -46,6 +47,9 @@ class AbstractClient(abc.ABC):
 
     # Empty dictionary, to be overridden by the subclass
     HOSTED_URLS = {}
+
+    # Login lock, re-entrant because the first request requires another login request
+    LOGIN_LOCK = threading.RLock()
 
     @classmethod
     def _get_login_params(
@@ -317,8 +321,10 @@ class AbstractClient(abc.ABC):
         :raises CommunicationError: if there was an error connecting to the resource
         :raises ApiError: if there was on error on the server side
         """
-        if not self._is_logged_in():
-            self._login()
+        # Login in a 'reentrant' way, and play nice with multiple threads
+        with self.LOGIN_LOCK:
+            if not self._is_logged_in():
+                self._login()
 
         try:
             response = self._session.request(

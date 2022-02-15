@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2
 import argparse
@@ -68,7 +68,7 @@ def main():
     # Decode input type
     file_inputs, input_type = decoders.InputTypeDecoder().decode(
         arguments=args.input_bits,
-        input_type=args.input_type,
+        input_type=decoders.InputType(args.input_type),
         inspect_content=False,
     )
 
