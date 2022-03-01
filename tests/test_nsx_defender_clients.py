@@ -25,11 +25,21 @@ TEST_UUID = "a" * 32
 
 TEST_API_URL = "https://<base>"
 
+GATEWAY_TIMEOUT = b"""<html>
+<head><title>504 Gateway Time-out</title></head>
+<body bgcolor="white">
+<center><h1>504 Gateway Time-out</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+"""
+
 
 def mock_response(
     status_code: int,
     content: Optional[Any] = None,
     headers: Optional[Dict] = None,
+    reason: str = None,
     raw: bool = False,
 ) -> requests.Response:
     """
@@ -38,6 +48,7 @@ def mock_response(
     :param int status_code: the HTTP response code
     :param Any|None content: the option content
     :param Any|Dict headers: the headers
+    :param str|None reason: the reason of the error
     :param bool raw: whether it is raw content
     :rtype: requests.Response
     :return: the mocked response
@@ -45,7 +56,7 @@ def mock_response(
     res = requests.Response()
     res.status_code = status_code
     res.url = TEST_API_URL
-    res.reason = "code"
+    res.reason = reason or "code"
     res.headers = headers or {}
     if content:
         if raw:
@@ -105,6 +116,24 @@ class PortalClientTestCase(unittest.TestCase):
             r"Error: code for url: {}\)".format(TEST_API_URL)
         )
         session_mock.request.side_effect = [mock_response(500, "generic error")]
+        requests_mock.session.return_value = session_mock
+
+        # Test the code
+        client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
+        with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
+            _ = client.get_progress(TEST_UUID)
+
+    @mock.patch("requests.sessions.Session")
+    @mock.patch("requests.sessions")
+    def test_open_client__http_error_gateway_timeout(self, requests_mock, session_mock):
+        """Test the portal client when there is a HTTP error."""
+        exception_msg_regex = (
+            r"Response not json.*504 Server Error: Gateway Timeout.*"
+            r"for url: {}\)".format(TEST_API_URL)
+        )
+        session_mock.request.side_effect = [
+            mock_response(504, GATEWAY_TIMEOUT, raw=True, reason="Gateway Timeout")
+        ]
         requests_mock.session.return_value = session_mock
 
         # Test the code

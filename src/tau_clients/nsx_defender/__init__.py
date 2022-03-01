@@ -404,6 +404,74 @@ class PortalClient(AbstractClient):
             self._session = requests.sessions.session()
         self.post("login", function=None, data=self._login_params)
 
+    def get_breach(self, breach_uuid: str, customer: Optional[str] = None) -> Dict:
+        """
+        Get breach information.
+
+        :param str breach_uuid: the breach uuid
+        :param str|None customer: the customer username if different from the current one
+        :rtype: dict
+        :return: a dictionary containing breach information
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "breach_uuid": breach_uuid,
+            }
+        )
+        return self.get("net", "breach/get", params=params)
+
+    def get_breach_summary(
+        self,
+        breach_uuid: str,
+        start_time: str,
+        end_time: str,
+        customer: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Get breach summary split in phases.
+
+        :param str breach_uuid: the breach uuid
+        :param str start_time: the start time of the breach as returned by 'get_breach'
+        :param str end_time: the end time of the breach as returned by 'get_breach'
+        :param str|None customer: the customer username if different from the current one
+        :rtype: list[dict]
+        :return: a dictionary containing breach information
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "breach_uuids": breach_uuid,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        )
+        return self.get("net", "breach/phases_summary", params=params)
+
+    def get_breach_evidence(
+        self,
+        breach_uuid: str,
+        include_events: bool = False,
+        customer: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Get breach evidences.
+
+        :param str breach_uuid: the breach uuid
+        :param bool include_events: whether to return reference events for each evidence
+        :param str|None customer: the customer username if different from the current one
+        :rtype: list[dict]
+        :return: a list of dictionaries containing evidences
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "breach_uuid": breach_uuid,
+                "extended": include_events,
+            }
+        )
+        return self.get("net", "breach/evidence", params=params)
+
     def get_event(
         self,
         event_id: str,
@@ -559,6 +627,7 @@ class PortalClient(AbstractClient):
         referer: Optional[str] = None,
         user_agent: Optional[str] = None,
         bypass_cache: bool = False,
+        delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
         """
         Upload a URL to be analyzed.
@@ -567,6 +636,7 @@ class PortalClient(AbstractClient):
         :param str|None referer: the referer
         :param str|None user_agent: the user agent
         :param bool bypass_cache: bypass_cache
+        :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
         :return: a dictionary like:
             {
@@ -595,6 +665,7 @@ class PortalClient(AbstractClient):
                 "bypass_cache": bypass_cache,
                 "referer": referer,
                 "user_agent": user_agent,
+                "delete_after_analysis": delete_after_analysis,
             }
         )
         return self.post("analysis", "submit_url", data=data)
@@ -607,6 +678,7 @@ class PortalClient(AbstractClient):
         analysis_env: Optional[str] = None,
         allow_network_traffic: bool = True,
         bypass_cache: bool = False,
+        delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
         """
         Upload a file to be analyzed.
@@ -617,6 +689,7 @@ class PortalClient(AbstractClient):
         :param str|None analysis_env: if set, e.g windowsxp
         :param bool allow_network_traffic: if set to False, deny network connections
         :param bool bypass_cache: whether to re-process a file (requires special permissions)
+        :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
         :return: a dictionary like:
             {
@@ -646,6 +719,7 @@ class PortalClient(AbstractClient):
                 "analysis_env": analysis_env,
                 "allow_network_traffic": allow_network_traffic,
                 "bypass_cache": bypass_cache,
+                "delete_after_analysis": delete_after_analysis,
             }
         )
         files = {"file": (file_name, file_data, "application/octet-stream")}
@@ -1062,6 +1136,7 @@ class AnalysisClient(AbstractClient):
         allow_network_traffic: bool = True,
         bypass_cache: bool = False,
         include_report: bool = False,
+        delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
         """
         Upload a file to be analyzed.
@@ -1073,6 +1148,7 @@ class AnalysisClient(AbstractClient):
         :param bool allow_network_traffic: if set to False, deny network connections
         :param bool bypass_cache: whether to re-process a file
         :param bool include_report: whether to include the report in the result
+        :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
         :return: a dictionary in the following form if the analysis is already available:
             {
@@ -1100,6 +1176,7 @@ class AnalysisClient(AbstractClient):
                 "bypass_cache": bypass_cache and 1 or None,
                 "analysis_env": analysis_env,
                 "allow_network_traffic": allow_network_traffic and 1 or None,
+                "delete_after_analysis": delete_after_analysis and 1 or None,
                 "filename": file_name,
                 "password": password,
                 "full_report_score": -1,
@@ -1121,6 +1198,7 @@ class AnalysisClient(AbstractClient):
         user_agent: Optional[str] = None,
         bypass_cache: bool = False,
         include_report: bool = False,
+        delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
         """
         Upload an URL to be analyzed.
@@ -1130,6 +1208,7 @@ class AnalysisClient(AbstractClient):
         :param str|None user_agent: the user agent
         :param bool bypass_cache: bypass_cache
         :param bool include_report: whether to include the report in the result
+        :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
         :return: a dictionary like the following if the analysis is already available:
             {
@@ -1158,6 +1237,7 @@ class AnalysisClient(AbstractClient):
                 "referer": referer,
                 "bypass_cache": bypass_cache and 1 or None,
                 "user_agent": user_agent or None,
+                "delete_after_analysis": delete_after_analysis or None,
             }
         )
         ret_data = self.post("analysis", ["submit", "url"], data=data)

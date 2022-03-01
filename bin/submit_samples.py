@@ -50,6 +50,14 @@ def main():
         default=False,
         help="whether to bypass the cache",
     )
+    parser.add_argument(
+        "-d",
+        "--delete-after-analysis",
+        dest="delete_after_analysis",
+        action="store_true",
+        default=False,
+        help="whether to delete the sample after analysis",
+    )
     decoders.InputTypeDecoder.add_arguments_to_parser(
         parser=parser,
         choices=[
@@ -97,7 +105,11 @@ def main():
     for file_path in file_paths:
         with open(file_path, "rb") as f:
             try:
-                ret = analysis_client.submit_file(f.read(), bypass_cache=args.bypass_cache)
+                ret = analysis_client.submit_file(
+                    f.read(),
+                    bypass_cache=args.bypass_cache,
+                    delete_after_analysis=args.delete_after_analysis,
+                )
                 submissions.append(ret)
                 task_to_source[ret["task_uuid"]] = file_path
             except exceptions.ApiError as ae:
@@ -105,7 +117,11 @@ def main():
     for file_hash in file_hashes:
         try:
             file_data = download_from_vt(vt_client, file_hash)
-            ret = analysis_client.submit_file(file_data, bypass_cache=args.bypass_cache)
+            ret = analysis_client.submit_file(
+                file_data,
+                bypass_cache=args.bypass_cache,
+                delete_after_analysis=args.delete_after_analysis,
+            )
             submissions.append(ret)
             task_to_source[ret["task_uuid"]] = file_hash
         except ValueError as ve:
