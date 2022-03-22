@@ -66,7 +66,7 @@ def main():
         "-t",
         "--artifact-types",
         dest="artifact_types",
-        choices=METADATA_TYPES + ["all"],
+        choices=METADATA_TYPES + ["all", "report"],
         nargs="+",
         default=["all"],
         help="the artifact types, i.e., PCAPs, code hash files, etc.",
@@ -95,7 +95,10 @@ def main():
     analysis_client = nsx_defender.MultiAnalysisClient.from_conf(conf, "analysis")
 
     # Parse the input
-    artifact_types = METADATA_TYPES if "all" in args.artifact_types else args.artifact_types
+    if "all" in args.artifact_types:
+        artifact_types = METADATA_TYPES + ["report"]
+    else:
+        artifact_types = args.artifact_types
     report_types = [] if args.disable_sandbox_filter else [tau_clients.REPORT_TYPE_SANDBOX]
 
     # Decode input type

@@ -7,6 +7,7 @@ import configparser
 import datetime
 import hashlib
 import io
+import json
 import logging
 import threading
 import time
@@ -1098,6 +1099,15 @@ class AnalysisClient(AbstractClient):
                                 "delete_date": delete_date,
                             }
                         )
+                ret.append(
+                    {
+                        "task_uuid": uuid,
+                        "report_uuid": report["report_uuid"],
+                        "artifact_name": "report",
+                        "artifact_type": "report",
+                        "delete_date": None,
+                    }
+                )
         return ret
 
     def get_artifact(
@@ -1117,15 +1127,23 @@ class AnalysisClient(AbstractClient):
         :rtype: NamedBytesIO
         :return: the artifact
         """
-        params = tau_clients.purge_none(
-            {
-                "uuid": uuid,
-                "report_uuid": report_uuid,
-                "artifact_name": artifact_name,
-                "allow_datacenter_redirect": allow_datacenter_redirect,
-            }
-        )
-        return self.get("analysis", "get_report_artifact", params=params, fmt=None, raw=True)
+        if artifact_name == "report":
+            report = self.get_result(uuid, report_uuid, include_report=True)
+            return tau_clients.NamedBytesIO(
+                content=json.dumps(report, indent=2).encode("utf-8"),
+                name="report.json",
+                mime_type="application/json",
+            )
+        else:
+            params = tau_clients.purge_none(
+                {
+                    "uuid": uuid,
+                    "report_uuid": report_uuid,
+                    "artifact_name": artifact_name,
+                    "allow_datacenter_redirect": allow_datacenter_redirect,
+                }
+            )
+            return self.get("analysis", "get_report_artifact", params=params, fmt=None, raw=True)
 
     def submit_file(
         self,
