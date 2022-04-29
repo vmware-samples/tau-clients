@@ -26,6 +26,8 @@ METADATA_TYPES = [
     tau_clients.METADATA_TYPE_SFC,
     tau_clients.METADATA_TYPE_FILE,
     tau_clients.METADATA_TYPE_EXECUTED_SCRIPT,
+    tau_clients.METADATA_TYPE_REPORT,
+    tau_clients.METADATA_TYPE_ANALYSIS_SUBJECT,
 ]
 
 
@@ -66,7 +68,7 @@ def main():
         "-t",
         "--artifact-types",
         dest="artifact_types",
-        choices=METADATA_TYPES + ["all", "report"],
+        choices=METADATA_TYPES + ["all"],
         nargs="+",
         default=["all"],
         help="the artifact types, i.e., PCAPs, code hash files, etc.",
@@ -96,7 +98,7 @@ def main():
 
     # Parse the input
     if "all" in args.artifact_types:
-        artifact_types = METADATA_TYPES + ["report"]
+        artifact_types = METADATA_TYPES
     else:
         artifact_types = args.artifact_types
     report_types = [] if args.disable_sandbox_filter else [tau_clients.REPORT_TYPE_SANDBOX]

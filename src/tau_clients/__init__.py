@@ -66,10 +66,13 @@ METADATA_TYPE_SFC = "sfc2_feature_reuse_report"
 METADATA_TYPE_LLBIST_TRACE = "llbist_analyzer_trace"
 METADATA_TYPE_STRINGS = "extracted_strings_report"
 METADATA_TYPE_FILE = "generated_file"
+METADATA_TYPE_REPORT = "report"
 METADATA_TYPE_EXECUTED_SCRIPT = "executed_script_content"
+METADATA_TYPE_ANALYSIS_SUBJECT = "analysis_subject"
 
 # Report types
 REPORT_TYPE_SANDBOX = "ll-int-win"
+REPORT_TYPE_STATIC = "ll-static"
 
 # Datetime formats
 DATETIME_FMT = "%Y-%m-%d %H:%M:%S"

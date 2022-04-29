@@ -1080,8 +1080,18 @@ class AnalysisClient(AbstractClient):
         result = self.get_result(uuid, include_report=False)
         for report in result.get("reports", []):
             if not report_types or any(x in report["report_versions"] for x in report_types):
-                temp = self.get_result(uuid, report_uuid=report["report_uuid"])
-                for item in temp.get("report", {}).get("analysis_metadata", []):
+                ret.append(
+                    {
+                        "task_uuid": uuid,
+                        "report_uuid": report["report_uuid"],
+                        "artifact_name": "report",
+                        "artifact_type": tau_clients.METADATA_TYPE_REPORT,
+                        "delete_date": None,
+                    }
+                )
+                report_data = self.get_result(uuid, report_uuid=report["report_uuid"])
+                metadata_items = report_data.get("report", {}).get("analysis_metadata", [])
+                for item in metadata_items:
                     if item["metadata_type"] in metadata_types or not metadata_types:
                         try:
                             delete_date = datetime.datetime.strptime(
@@ -1099,15 +1109,6 @@ class AnalysisClient(AbstractClient):
                                 "delete_date": delete_date,
                             }
                         )
-                ret.append(
-                    {
-                        "task_uuid": uuid,
-                        "report_uuid": report["report_uuid"],
-                        "artifact_name": "report",
-                        "artifact_type": "report",
-                        "delete_date": None,
-                    }
-                )
         return ret
 
     def get_artifact(
