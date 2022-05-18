@@ -405,6 +405,27 @@ class PortalClient(AbstractClient):
             self._session = requests.sessions.session()
         self.post("login", function=None, data=self._login_params)
 
+    def get_monitored_hosts(self, breach_uuid, start_time, end_time, customer):
+        """
+        Get the list of monitored hosts.
+
+        :param str breach_uuid: the breach uuid
+        :param str start_time: the start time of the breach as returned by 'get_breach'
+        :param str end_time: the end time of the breach as returned by 'get_breach'
+        :param str|None customer: the customer username if different from the current one
+        :rtype: list[dict]
+        :return: a dictionary containing hosts information
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "breach_uuid": breach_uuid,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        )
+        return self.get("net", "monitored_host/all/list", params=params)
+
     def get_breach(self, breach_uuid: str, customer: Optional[str] = None) -> Dict:
         """
         Get breach information.
@@ -449,6 +470,33 @@ class PortalClient(AbstractClient):
         )
         return self.get("net", "breach/phases_summary", params=params)
 
+    def get_breach_phases(
+        self,
+        breach_uuid: str,
+        start_time: str,
+        end_time: str,
+        customer: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Get breach phases in detail.
+
+        :param str breach_uuid: the breach uuid
+        :param str start_time: the start time of the breach as returned by 'get_breach'
+        :param str end_time: the end time of the breach as returned by 'get_breach'
+        :param str|None customer: the customer username if different from the current one
+        :rtype: list[dict]
+        :return: a dictionary containing breach phases
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "breach_uuid": breach_uuid,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        )
+        return self.get("net", "breach/phases", params=params)
+
     def get_breach_evidence(
         self,
         breach_uuid: str,
@@ -472,6 +520,43 @@ class PortalClient(AbstractClient):
             }
         )
         return self.get("net", "breach/evidence", params=params)
+
+    def list_events(
+        self,
+        start_time: str,
+        end_time: str,
+        max_results: Optional[int] = None,
+        offset_results: Optional[int] = None,
+        event_outcome: Optional[str] = None,
+        customer: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        List all events.
+
+        :param str start_time: the start time
+        :param str end_time: the end time
+        :param int|None max_results: the maximum result to return (useful when paginating)
+        :param int|None offset_results: the offset when paginating
+        :param str|None event_outcome: the outcome of the event (DETECTION/INFO/ALL)
+        :param str|None customer: the customer username if different from the current one
+        :param int|None user_id: the user id (requires special privileges)
+        :rtype: list[dict[str, any]]
+        :return: the list of events
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "user_id": user_id,
+                "start_time": start_time,
+                "end_time": end_time,
+                "max_results": max_results,
+                "offset_results": offset_results,
+                "event_outcome": event_outcome,
+                "orderby": "event_end_time DESC",
+            }
+        )
+        return self.get("net", "event/list", params=params)
 
     def get_event(
         self,
@@ -679,6 +764,7 @@ class PortalClient(AbstractClient):
         analysis_env: Optional[str] = None,
         allow_network_traffic: bool = True,
         bypass_cache: bool = False,
+        bypass_prefilter: bool = False,
         delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -690,6 +776,7 @@ class PortalClient(AbstractClient):
         :param str|None analysis_env: if set, e.g windowsxp
         :param bool allow_network_traffic: if set to False, deny network connections
         :param bool bypass_cache: whether to re-process a file (requires special permissions)
+        :param bool bypass_prefilter: whether to skip the prefilter (requires special permissions)
         :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
         :return: a dictionary like:
@@ -720,6 +807,7 @@ class PortalClient(AbstractClient):
                 "analysis_env": analysis_env,
                 "allow_network_traffic": allow_network_traffic,
                 "bypass_cache": bypass_cache,
+                "bypass_prefilter": bypass_prefilter,
                 "delete_after_analysis": delete_after_analysis,
             }
         )
@@ -1154,6 +1242,7 @@ class AnalysisClient(AbstractClient):
         analysis_env: Optional[str] = None,
         allow_network_traffic: bool = True,
         bypass_cache: bool = False,
+        bypass_prefilter: bool = False,
         include_report: bool = False,
         delete_after_analysis: bool = False,
     ) -> Dict[str, Any]:
@@ -1165,7 +1254,8 @@ class AnalysisClient(AbstractClient):
         :param str|None password: if set, use it to extract the sample
         :param str|None analysis_env: if set, e.g windowsxp
         :param bool allow_network_traffic: if set to False, deny network connections
-        :param bool bypass_cache: whether to re-process a file
+        :param bool bypass_cache: whether to re-process a file (requires special permissions)
+        :param bool bypass_prefilter: whether to skip the prefilter (requires special permissions)
         :param bool include_report: whether to include the report in the result
         :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
@@ -1193,6 +1283,7 @@ class AnalysisClient(AbstractClient):
         data = tau_clients.purge_none(
             {
                 "bypass_cache": bypass_cache and 1 or None,
+                "bypass_prefilter": bypass_prefilter and 1 or None,
                 "analysis_env": analysis_env,
                 "allow_network_traffic": allow_network_traffic and 1 or None,
                 "delete_after_analysis": delete_after_analysis and 1 or None,
@@ -1225,7 +1316,7 @@ class AnalysisClient(AbstractClient):
         :param str url: the url to analyze
         :param str|None referer: the referer
         :param str|None user_agent: the user agent
-        :param bool bypass_cache: bypass_cache
+        :param bool bypass_cache: bypass_cache (requires special permissions)
         :param bool include_report: whether to include the report in the result
         :param bool delete_after_analysis: whether to delete after analysis
         :rtype: dict[str, any]
