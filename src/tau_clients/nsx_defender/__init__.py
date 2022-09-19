@@ -979,6 +979,37 @@ class AnalysisClient(AbstractClient):
         )
         return self.get("analysis", "completed", params=params)
 
+    def get_pending(
+        self,
+        after: Optional[Union[datetime.datetime, str]] = None,
+        before: Optional[Union[datetime.datetime, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get the list of uuids of tasks that were completed within a given time frame.
+
+        :param datetime.datetime|str|None after: request tasks completed after this time
+        :param datetime.datetime|str|None before: request tasks completed before this time
+        :return: a dictionary like:
+            {
+                'tasks': ['182a645e7020001000de1474baf8b7b9'],
+                'after': '2021-07-14 09:10:00',
+                'more_results_available': 0,
+                'resume': '2021-07-14 14:09:47',
+                'before': '2021-07-14 14:09:59'
+            }
+        """
+        if hasattr(before, "strftime"):
+            before = before.strftime(tau_clients.DATETIME_FMT)
+        if hasattr(after, "strftime"):
+            after = after.strftime(tau_clients.DATETIME_FMT)
+        params = tau_clients.purge_none(
+            {
+                "before": before,
+                "after": after,
+            }
+        )
+        return self.get("analysis", "get_pending", params=params)
+
     def get_task_metadata(self, uuid: str) -> Dict[str, str]:
         """
         Get the metadata of a given task.
