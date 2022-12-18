@@ -134,11 +134,11 @@ def main():
     )
     parser.add_argument(
         "-w",
-        "--wait-for-pending-submissions",
-        dest="wait_for_pending_submissions",
+        "--max-pending-submissions",
+        dest="max_pending_submissions",
         default=0,
         type=int,
-        help="if set, wait for the number of pending submissions to go below the given value",
+        help="if set, specify the maximum number of pending submissions before submitting more",
     )
     parser.add_argument(
         "-e",
@@ -147,6 +147,14 @@ def main():
         default=0,
         type=int,
         help="if set, wait the given number of second in-between submissions",
+    )
+    parser.add_argument(
+        "-x",
+        "--skip-waiting-for-completion",
+        dest="skip_waiting_for_completion",
+        action="store_true",
+        default=False,
+        help="if set, skip waiting for completion and only print the analysis links",
     )
     decoders.InputTypeDecoder.add_arguments_to_parser(
         parser=parser,
@@ -198,14 +206,14 @@ def main():
         resume_msg = f"(use '-s {args.skip_first_n + idx}' to resume from here)"
         with open(file_path, "rb") as f:
             try:
-                if args.wait_for_pending_submissions:
+                if args.max_pending_submissions:
                     for nb_pending in wait_for_pending_submissions(
                         analysis_client=analysis_client,
-                        max_pending=args.wait_for_pending_submissions,
+                        max_pending=args.max_pending_submissions,
                     ):
                         print(
                             f"[{idx}/{len(file_paths)}] Waiting til pending submissions are below "
-                            f"{args.wait_for_pending_submissions} (currently {nb_pending})"
+                            f"{args.max_pending_submissions} (currently {nb_pending})"
                         )
                 else:
                     nb_pending = get_pending_submissions_count(analysis_client)
@@ -230,14 +238,14 @@ def main():
         resume_msg = f"(use '-s {args.skip_first_n + idx}' to resume from here)"
         try:
             file_data = download_from_vt(vt_client, file_hash)
-            if args.wait_for_pending_submissions:
+            if args.max_pending_submissions:
                 for nb_pending in wait_for_pending_submissions(
                     analysis_client=analysis_client,
-                    max_pending=args.wait_for_pending_submissions,
+                    max_pending=args.max_pending_submissions,
                 ):
                     print(
                         f"[{idx}/{len(file_paths)}] Waiting until pending submissions are below "
-                        f"{args.wait_for_pending_submissions} (currently {nb_pending})"
+                        f"{args.max_pending_submissions} (currently {nb_pending})"
                     )
             else:
                 nb_pending = get_pending_submissions_count(analysis_client)
@@ -268,23 +276,26 @@ def main():
     print(f"All files have been submitted ({len(submissions)} submissions)")
 
     # Wait for completion
-    try:
-        for idx, submission in enumerate(
-            analysis_client.yield_completed_tasks(
-                submissions=submissions,
-                start_timestamp=submission_start_ts,
-            ),
-            start=1,
-        ):
+    if args.skip_waiting_for_completion:
+        for submission in submissions:
             task_uuid = submission.get("task_uuid")
-            if not task_uuid:
-                print(f"File '{task_to_source[task_uuid]}' could not be analyzed")
-            else:
+            task_link = tau_clients.get_task_link(task_uuid, prefer_load_balancer=True)
+            print(f"File '{task_to_source[task_uuid]}' analysis link: {task_link}")
+    else:
+        try:
+            for idx, submission in enumerate(
+                analysis_client.yield_completed_tasks(
+                    submissions=submissions,
+                    start_timestamp=submission_start_ts,
+                ),
+                start=1,
+            ):
+                task_uuid = submission.get("task_uuid")
                 task_link = tau_clients.get_task_link(task_uuid, prefer_load_balancer=True)
                 print(f"File '{task_to_source[task_uuid]}' finished analysis: {task_link}")
-            print(f"\tRemaining {len(submissions)-idx}/{len(submissions)}...")
-    except KeyboardInterrupt:
-        print("Waiting for results interrupted by user")
+                print(f"\tRemaining {len(submissions)-idx}/{len(submissions)}...")
+        except KeyboardInterrupt:
+            print("Waiting for results interrupted by user")
 
     print("Done")
     return 0
