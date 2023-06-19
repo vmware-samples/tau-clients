@@ -373,7 +373,7 @@ class AbstractClient(abc.ABC):
         params: Optional[Dict[str, str]] = None,
         fmt: Optional[str] = "json",
         raw: bool = False,
-    ) -> Union[list, dict, bytes, tau_clients.NamedBytesIO]:
+    ) -> Union[list, dict, bytes, int, tau_clients.NamedBytesIO]:
         """Utility method to issue a GET request (see '_request' for documentation)."""
         return self._request(
             method="GET",
@@ -520,6 +520,33 @@ class PortalClient(AbstractClient):
             }
         )
         return self.get("net", "breach/evidence", params=params)
+
+    def count_monitored_hosts(
+        self,
+        start_time: str,
+        end_time: str,
+        customer: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> int:
+        """
+        Get the list of monitored hosts.
+
+        :param str start_time: the start time
+        :param str end_time: the end time
+        :param str|None customer: the customer username if different from the current one
+        :param int|None user_id: the user id (requires special privileges)
+        :rtype: int
+        :return: number of monitored hosts
+        """
+        params = tau_clients.purge_none(
+            {
+                "customer": customer,
+                "user_id": user_id,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        )
+        return self.get("net", "monitored_host/count", params=params)
 
     def list_events(
         self,
