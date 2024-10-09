@@ -1,7 +1,6 @@
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2
 import abc
-import cgi
 import collections
 import configparser
 import datetime
@@ -12,6 +11,7 @@ import logging
 import threading
 import time
 import weakref
+from email import message
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -165,8 +165,19 @@ class AbstractClient(abc.ABC):
         """Return whether we have an active session."""
         return self._session is not None
 
-    @staticmethod
-    def _parse_disposition(response: requests.Response) -> Optional[Disposition]:
+    @classmethod
+    def parse_header(cls, content_disposition: str) -> tuple[str, dict]:
+        """Alternative to 'cgi' method now deprecated."""
+        msg = message.EmailMessage()
+        msg["content-type"] = content_disposition
+        if content_disposition.startswith("attachment;"):
+            content_type = "attachment"
+        else:
+            content_type = msg.get_content_type()
+        return content_type, msg["content-type"].params
+
+    @classmethod
+    def _parse_disposition(cls, response: requests.Response) -> Optional[Disposition]:
         """
         Return the content disposition of a response if present.
 
@@ -176,7 +187,7 @@ class AbstractClient(abc.ABC):
         """
         content_disposition = response.headers.get("content-disposition")
         if content_disposition:
-            disp_type, disp_params = cgi.parse_header(content_disposition)
+            disp_type, disp_params = cls.parse_header(content_disposition)
             if disp_type:
                 return Disposition(type=disp_type.lower(), params=disp_params)
         return None

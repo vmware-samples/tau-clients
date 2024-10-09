@@ -6,9 +6,9 @@ import datetime
 import gc
 import io
 import unittest
+from unittest import mock
 
-import mock
-from nose.plugins.attrib import attr
+import pytest
 from tau_clients import exceptions
 from tau_clients import nsx_defender
 
@@ -27,12 +27,12 @@ TEST_ARTIFACT_NAME = "process_snapshots_1"
 
 TEST_URL = "https://www.google.com"
 
-UTC_NOW = datetime.datetime.utcnow()
+UTC_NOW = datetime.datetime.now(tz=datetime.timezone.utc)
 
 CONF_LOCATION = "./data/tau_clients.ini"
 
 
-@attr("live")
+@pytest.mark.skip(reason="This test requires live setup")
 class TestLiveNSXDefenderClients(unittest.TestCase):
     """
     Run NSX Defender clients live:
@@ -105,7 +105,7 @@ class TestLiveNSXDefenderClients(unittest.TestCase):
 
     def test_analysis_client__auth_error(self):
         """Test loading the analysis client with wrong credentials."""
-        with self.assertRaisesRegexp(exceptions.ApiError, "Invalid Credentials"):
+        with self.assertRaisesRegex(exceptions.ApiError, "Invalid Credentials"):
             client = nsx_defender.AnalysisClient.from_conf(self.conf_with_errors, "analysis")
             _ = client.get_analysis_tags(TEST_UUID)
 
@@ -142,7 +142,7 @@ class TestLiveNSXDefenderClients(unittest.TestCase):
 
     def test_portal_client__auth_error(self):
         """Test loading the portal client with wrong credentials."""
-        with self.assertRaisesRegexp(exceptions.ApiError, "Authentication Error"):
+        with self.assertRaisesRegex(exceptions.ApiError, "Authentication Error"):
             client = nsx_defender.PortalClient.from_conf(self.conf_with_errors, "portal")
             _ = client.get_progress(TEST_UUID)
 

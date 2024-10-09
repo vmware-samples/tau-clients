@@ -12,7 +12,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Sized
 from typing import Union
 from urllib import parse
 
@@ -217,7 +216,7 @@ def is_task_link_hosted(task_link: str) -> bool:
 
 
 def merge_dicts(
-    sequence_of_dict: Union[Sized, List],
+    sequence_of_dict: List,
     reduce_funcs: Optional[Dict[str, Callable]] = None,
 ) -> Dict[str, Any]:
     """

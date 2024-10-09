@@ -7,10 +7,10 @@ import unittest
 from typing import Any
 from typing import Dict
 from typing import Optional
+from unittest import mock
 from unittest.mock import call
 
 import ddt
-import mock
 import requests.exceptions
 import tau_clients
 from tau_clients import exceptions
@@ -104,7 +104,7 @@ class PortalClientTestCase(unittest.TestCase):
 
         # Test the code
         client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
-        with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
+        with self.assertRaisesRegex(exceptions.CommunicationError, exception_message):
             _ = client.get_progress(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -120,7 +120,7 @@ class PortalClientTestCase(unittest.TestCase):
 
         # Test the code
         client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
-        with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
+        with self.assertRaisesRegex(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -138,7 +138,7 @@ class PortalClientTestCase(unittest.TestCase):
 
         # Test the code
         client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
-        with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
+        with self.assertRaisesRegex(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -155,7 +155,7 @@ class PortalClientTestCase(unittest.TestCase):
 
         # Test the code
         client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
-        with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
+        with self.assertRaisesRegex(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -172,7 +172,7 @@ class PortalClientTestCase(unittest.TestCase):
 
         # Test the code
         client = nsx_defender.PortalClient(api_url=TEST_API_URL, login_params=PORTAL_AUTH_DATA)
-        with self.assertRaisesRegexp(exceptions.ApiError, exception_msg_regex):
+        with self.assertRaisesRegex(exceptions.ApiError, exception_msg_regex):
             _ = client.get_progress(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -235,7 +235,7 @@ class AnalysisClientTestCase(unittest.TestCase):
         client = nsx_defender.AnalysisClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
-        with self.assertRaisesRegexp(exceptions.CommunicationError, exception_message):
+        with self.assertRaisesRegex(exceptions.CommunicationError, exception_message):
             _ = client.get_analysis_tags(TEST_UUID)
 
     @mock.patch("requests.sessions.Session")
@@ -292,10 +292,17 @@ class AnalysisClientTestCase(unittest.TestCase):
             {
                 "task_uuid": TEST_UUID,
                 "report_uuid": "REPORT_UUID",
+                "artifact_name": "report",
+                "artifact_type": tau_clients.METADATA_TYPE_REPORT,
+                "delete_date": None,
+            },
+            {
+                "task_uuid": TEST_UUID,
+                "report_uuid": "REPORT_UUID",
                 "artifact_name": "NAME",
                 "artifact_type": tau_clients.METADATA_TYPE_PCAP,
                 "delete_date": None,
-            }
+            },
         ]
         expected_result_1 = {
             "report": {},
@@ -438,7 +445,7 @@ class AnalysisClientTestCase(unittest.TestCase):
         client = nsx_defender.AnalysisClient(
             api_url=TEST_API_URL, login_params=ANALYSIS_AUTH_DATA
         )
-        with self.assertRaisesRegexp(exceptions.ApiError, "403 Client Error"):
+        with self.assertRaisesRegex(exceptions.ApiError, "403 Client Error"):
             _ = client.get_artifact(TEST_UUID, "REPORT_UUID", "NAME")
 
 

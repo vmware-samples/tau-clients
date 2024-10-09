@@ -6,9 +6,9 @@ import textwrap
 import unittest
 from typing import List
 from typing import Tuple
+from unittest import mock
 
 import ddt
-import mock
 from tau_clients import decoders
 from tau_clients import exceptions
 
@@ -112,14 +112,14 @@ class DecoderTestCase(unittest.TestCase):
                 self._side_effect_exists,
                 existing_paths=["path/to/open"],
             )
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not choose"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not choose"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.NULL,
                     arguments=["path/to/open", TEST_SHA1_1],
                     inspect_content=False,
                 )
             # try again with no hint and we should see no difference
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not choose"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not choose"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.FILE_HASH,
                     arguments=["path/to/open", TEST_SHA1_1],
@@ -257,14 +257,14 @@ class DecoderTestCase(unittest.TestCase):
                     existing_path="path/to/list",
                     existing_files=[],
                 )
-                with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
+                with self.assertRaisesRegex(exceptions.InputTypeException, "Could not infer"):
                     _, _ = decoder.decode(
                         input_type=decoders.InputType.DIRECTORY,
                         arguments=["path/to/list"],
                         inspect_content=False,
                     )
                 # try again with no hint but we should see no difference
-                with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
+                with self.assertRaisesRegex(exceptions.InputTypeException, "Could not infer"):
                     _, _ = decoder.decode(
                         input_type=decoders.InputType.NULL,
                         arguments=["path/to/list"],
@@ -308,14 +308,14 @@ class DecoderTestCase(unittest.TestCase):
         test_data, expected_result = args
         decoder = decoders.InputTypeDecoder()
         with mock.patch("builtins.open", mock.mock_open(read_data=test_data)) as _:
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not decode"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not decode"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.FILE,
                     arguments=["path/to/open"],
                     inspect_content=True,
                 )
             # try again with no hint but we should see no difference
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not infer"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.NULL,
                     arguments=["path/to/open"],
@@ -330,14 +330,14 @@ class DecoderTestCase(unittest.TestCase):
                 self._side_effect_exists,
                 existing_paths=[],
             )
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not infer"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.FILE,
                     arguments=["path/to/open"],
                     inspect_content=False,
                 )
             # try again with no hint but we should see no difference
-            with self.assertRaisesRegexp(exceptions.InputTypeException, "Could not infer"):
+            with self.assertRaisesRegex(exceptions.InputTypeException, "Could not infer"):
                 _, _ = decoder.decode(
                     input_type=decoders.InputType.NULL,
                     arguments=["path/to/open"],

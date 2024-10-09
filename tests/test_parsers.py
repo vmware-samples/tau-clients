@@ -4,9 +4,9 @@
 import importlib
 import json
 import unittest
+from unittest import mock
 
 import ddt
-import mock
 
 try:
     parsers = importlib.import_module("tau_clients.parsers")

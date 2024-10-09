@@ -8,16 +8,15 @@ build-backend = "setuptools.build_meta"
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py36, py39
+envlist = py39, py310, py311, py312
 isolated_build = True
 
 [testenv]
-commands=nosetests
+commands=pytest
 extras=misp
 deps=
     ddt
-    mock
-    nose
+    pytest
 """
 
 [tool.black]
